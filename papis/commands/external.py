@@ -9,6 +9,7 @@ import logging
 from typing import List
 
 import click
+import platform
 
 import papis.config
 import papis.commands
@@ -53,7 +54,19 @@ def external_cli(ctx: click.core.Context, flags: List[str]) -> None:
     path = script.path
     if not path:
         raise Exception("Path for script {} not found".format(script))
-    cmd = [path] + list(flags)
+    if platform.system() == "Windows":
+        # Check for specified script language 
+        # (needed for plugins to work under windows)
+        exec_word = "#! /usr/bin/env "
+        with open(path, 'r') as _fd:
+            for line in _fd:
+                if line[0:len(exec_word)] == exec_word:
+                    cmd_program = line[len(exec_word):-1]
+                    if cmd_program == "python3":
+                        cmd_program = "python"
+                    cmd = [str(cmd_program)] + [path] + list(flags)
+    else:
+        cmd = [path] + list(flags)
     LOGGER.debug("Calling %s", cmd)
     export_variables()
     subprocess.call(cmd)
