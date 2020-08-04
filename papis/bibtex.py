@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from typing import Optional, List, Dict, Any
+import platform
 
 import papis.config
 import click
@@ -238,7 +239,13 @@ def to_bibtex(document: papis.document.Document) -> str:
     for bibKey in sorted(document.keys()):
         logger.debug('%s : %s' % (bibKey, document[bibKey]))
         if bibKey in bibtex_keys:
-            value = str(document[bibKey])
+            if platform.system() == "Windows":
+                try:
+                    value = document[bibKey].encode('latin1').decode('utf8')
+                except (UnicodeEncodeError, AttributeError):
+                    value = str(document[bibKey])
+            else:
+                value = str(document[bibKey])
             if not papis.config.getboolean('bibtex-unicode'):
                 value = unicode_to_latex(value)
             if bibKey == 'journal':
