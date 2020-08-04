@@ -5,6 +5,7 @@ import logging
 from typing import (
     List, Dict, Any, Optional, Union, NamedTuple, Callable, Tuple)
 from typing_extensions import TypedDict
+import platform
 
 import papis.config
 
@@ -432,6 +433,9 @@ def format_doc(
     fdoc = Document()
     fdoc.update(document)
     try:
-        return python_format.format(**{doc: fdoc})
+        formatted_str = python_format.format(**{doc: fdoc})
+        if platform.system() == "Windows":
+            formatted_str = formatted_str.encode('latin1').decode('utf8')
+        return formatted_str
     except Exception as exception:
         return str(exception)
