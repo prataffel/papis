@@ -435,7 +435,10 @@ def format_doc(
     try:
         formatted_str = python_format.format(**{doc: fdoc})
         if platform.system() == "Windows":
-            formatted_str = formatted_str.encode('latin1').decode('utf8')
+            try:
+                formatted_str = formatted_str.encode('latin1').decode('utf8')
+            except UnicodeEncodeError:
+                pass
         return formatted_str
     except Exception as exception:
         return str(exception)
