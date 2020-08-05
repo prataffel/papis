@@ -5,7 +5,6 @@ import logging
 from typing import (
     List, Dict, Any, Optional, Union, NamedTuple, Callable, Tuple)
 from typing_extensions import TypedDict
-import platform
 
 import papis.config
 
@@ -246,22 +245,6 @@ def to_json(document: Document) -> str:
     return json.dumps(to_dict(document))
 
 
-def windows_encoding(string: str) -> str:
-    """Try to format a latin1 encoded string in uft8.
-    If this fails the original string is returned.
-    :param string: A (possibly latin1-formatted) string
-    :type  string: str
-    :returns: A uft8 formatted string
-    :rtype: str
-    """
-    try:
-        return_string = string.encode('latin1').decode('utf8')
-    except(UnicodeEncodeError, AttributeError):
-        return_string = string
-    return return_string
-        
-
-
 def to_dict(document: Document) -> Dict[str, Any]:
     """Gets a python dictionary with the information of the document
     :param document: Papis document
@@ -271,34 +254,7 @@ def to_dict(document: Document) -> Dict[str, Any]:
     """
     result = dict()
     for key in document.keys():
-        if platform.system() == "Windows":
-            # check for different types
-            if isinstance(document[key], str): 
-                document_value = windows_encoding(document[key])
-            elif isinstance(document[key], list):
-                document_value = []
-                for listitem in document[key]:
-                    # Due to authors being dics in a list, repeat this
-                    if isinstance(listitem, str): 
-                        item_value = windows_encoding(listitem)
-                    elif isinstance(listitem, list):
-                        item_value = []
-                        for sublistitem in document[key]:
-                            item_value.append(windows_encoding(sublistitem))
-                    elif isinstance(listitem, dict):
-                        item_value = dict()
-                        for subkey in listitem.keys():
-                            item_value[subkey] = \
-                                    windows_encoding(listitem[subkey])
-                    document_value.append(item_value)
-            elif isinstance(document[key], dict):
-                document_value = dict()
-                for subkey in document[key].keys():
-                    document_value[subkey] = \
-                            windows_encoding(document[key][subkey])
-            result[key] = document_value
-        else:
-            result[key] = document[key]
+        result[key] = document[key]
     return result
 
 
@@ -476,12 +432,6 @@ def format_doc(
     fdoc = Document()
     fdoc.update(document)
     try:
-        formatted_str = python_format.format(**{doc: fdoc})
-        if platform.system() == "Windows":
-            try:
-                formatted_str = formatted_str.encode('latin1').decode('utf8')
-            except UnicodeEncodeError:
-                pass
-        return formatted_str
+        return python_format.format(**{doc: fdoc})
     except Exception as exception:
         return str(exception)

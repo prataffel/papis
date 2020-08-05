@@ -147,7 +147,7 @@ def cli(query: str,
     if ret_string is not None and not folder:
         if out is not None:
             logger.info("Dumping to {0}".format(out))
-            with open(out, 'a+', encoding ='utf8') as fd:
+            with open(out, 'a+') as fd:
                 fd.write(ret_string)
         else:
             logger.info("Dumping to stdout")
@@ -197,7 +197,7 @@ def explorer(ctx: click.Context, fmt: str, out: str) -> None:
 
     outstring = run(docs, to_format=fmt)
     if out is not None:
-        with open(out, 'a+', encoding = 'utf8') as fd:
+        with open(out, 'a+') as fd:
             logger.info(
                 "Writing {} documents' in {} into {}".format(
                     len(docs), fmt, out))
