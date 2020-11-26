@@ -1,0 +1,6 @@
+exclude_paths:
+- 'tests/**'
+- Dockerfile
+- tools/**
+- **.md
+- scripts/shell_completion/**

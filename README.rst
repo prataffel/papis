@@ -3,6 +3,7 @@ Papis
 
 |PyPI-Versions| |Build_Status| |build_appveyor| |Coveralls| |RTD| |Pypi|
 |Code_Quality| |zenodo_badge| |PyPI-Downloads| |MYPY-CHECKED|
+|OpenHub|
 
 |Packaging_status|
 
@@ -78,7 +79,7 @@ you can set the year `--set year 2018` or tags for organizing
 
     papis add libc.pdf --set author "Sandra Loosemore" --set title "GNU C reference manual" --set year 2018 --set tags programming --confirm
     # Get paper information automatically via de DOI
-    papis add --from-doi 10.1090/noti963 --set tags programming rnoti-p434.pdf
+    papis add --from doi 10.1090/noti963 --set tags programming rnoti-p434.pdf
 
 Now open one for example, or edit them
 
@@ -134,6 +135,9 @@ See the ``AUTHORS`` list for a list of authored commits.
    :target: https://pypi.org/project/papis
 .. |MYPY-CHECKED| image:: http://www.mypy-lang.org/static/mypy_badge.svg
    :target: http://mypy-lang.org/
+.. |OpenHub| image:: https://www.openhub.net/p/papis/widgets/project_thin_badge.gif
+   :target: https://www.openhub.net/p/papis
+
 
 
 Related software
@@ -145,3 +149,24 @@ Here is a list of similar software:
 - `Zotero <https://www.zotero.org/>`__ FOSS
 - `Xapers <https://finestructure.net/xapers/>`__.
 - `pubs <https://github.com/pubs/pubs/>`__.
+
+
+
+License
+-------
+
+Papis, a document manager
+Copyright © 2017 Alejandro Gallo
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.

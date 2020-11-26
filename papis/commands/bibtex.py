@@ -72,6 +72,7 @@ Cli
 
 """
 import os
+import re
 import papis.api
 import papis.cli
 import click
@@ -79,10 +80,12 @@ import papis.config as config
 import papis.utils
 import papis.tui.utils
 import papis.commands.explore as explore
+import papis.commands.add
 import papis.commands.open
 import papis.commands.edit
 import papis.commands.browse
 import papis.commands.export
+import papis.bibtex
 import logging
 import colorama
 
@@ -162,10 +165,13 @@ def _update(ctx: click.Context, _all: bool,
     docs = click.get_current_context().obj['documents']
     picked_doc = None
     if not _all:
-        picked_doc = papis.api.pick_doc(docs)
-        if picked_doc is None:
+        picked_docs = papis.api.pick_doc(docs)
+        if picked_docs is None or picked_docs[0] is None:
             return
+        picked_doc = picked_docs[0]
     for j, doc in enumerate(docs):
+        if picked_doc and doc["ref"] != picked_doc["ref"]:
+            continue
         try:
             libdoc = papis.utils.locate_document_in_lib(doc)
         except IndexError as e:
@@ -227,7 +233,7 @@ def _browse(ctx: click.Context, key: Optional[str]) -> None:
     """browse a document in the documents list"""
     docs = papis.api.pick_doc(ctx.obj['documents'])
     if key:
-        papis.config.set("browse-key", key)
+        config.set("browse-key", key)
     if not docs:
         return
     for d in docs:
@@ -294,7 +300,162 @@ def _save(ctx: click.Context, bibfile: str, force: bool) -> None:
               is_flag=True)
 @click.pass_context
 def _sort(ctx: click.Context, key: Optional[str], reverse: bool) -> None:
-    """Save the documents imported in bibtex format"""
+    """Sort documents"""
     docs = ctx.obj['documents']
-    ctx.obj['documents'] = list(
-        sorted(docs, key=lambda d: d[key], reverse=reverse))
+    ctx.obj['documents'] = list(sorted(docs,
+                                       key=lambda d: str(d[key]),
+                                       reverse=reverse))
+
+
+@cli.command('unique')
+@click.help_option('-h', '--help')
+@click.option('-k', '--key',
+              help="Field to test for uniqueness, default is ref",
+              default="ref",
+              type=str)
+@click.option('-o',
+              help="Output the discarded documents to a file",
+              default=None,
+              type=str)
+@click.pass_context
+def _unique(ctx: click.Context, key: str, o: Optional[str]) -> None:
+    """Remove repetitions"""
+    docs = ctx.obj['documents']
+    unique_docs = []
+    duplis_docs = []
+
+    while True:
+        if not len(docs):
+            break
+        doc = docs.pop(0)
+        unique_docs.append(doc)
+        indices = []
+        for i, bottle in enumerate(docs):
+            if doc.get(key) == bottle.get(key):
+                indices.append(i)
+                duplis_docs.append(bottle)
+                logger.info('{}. repeated {} ⇒ {}'
+                            .format(len(duplis_docs), key, doc.get(key)))
+        docs = [d for (i, d) in enumerate(docs) if i not in indices]
+
+    logger.info("Unique   : {}".format(len(unique_docs)))
+    logger.info("Discarded: {}".format(len(duplis_docs)))
+
+    ctx.obj['documents'] = unique_docs
+    if o:
+        with open(o, 'w+') as f:
+            logger.info('Saving {1} documents in {0}..'
+                        .format(o, len(duplis_docs)))
+            f.write(papis.commands.export.run(duplis_docs, to_format='bibtex'))
+
+
+@cli.command('doctor')
+@click.help_option('-h', '--help')
+@click.option('-k', '--key',
+              help="Field to test for uniqueness, default is ref",
+              multiple=True,
+              default=("doi", "url", "year", "title", "author"),
+              type=str)
+@click.pass_context
+def _doctor(ctx: click.Context, key: List[str]) -> None:
+    """
+    Check bibfile for correctness, missing keys etc.
+        e.g. papis bibtex -k title -k url -k doi
+
+    """
+    logger.info("Checking for existence of %s", ", ".join(key))
+
+    failed = [(d, keys) for d, keys in [(d, [k for k in key if not d.has(k)])
+                                        for d in ctx.obj['documents']]
+              if keys]
+
+    for j, (doc, keys) in enumerate(failed):
+        logger.info('{} {c.Back.BLACK}{c.Fore.RED}{doc: <80.80}'
+                    '{c.Style.RESET_ALL}'
+                    .format(j, doc=papis.document.describe(doc), c=colorama))
+        for k in keys:
+            logger.info('\tmissing: %s', k)
+
+
+@cli.command('iscited')
+@click.help_option('-h', '--help')
+@click.option('-f', '--file', '_files',
+              help="Text file to check for references",
+              multiple=True, required=True, type=str)
+@papis.cli.all_option()
+@click.pass_context
+def _iscited(ctx: click.Context, _files: List[str], _all: bool) -> None:
+    """
+    Check which documents are not cited
+    e.g. papis bibtex iscited -f main.tex -f chapter-2.tex
+    """
+    unfound = []
+
+    for f in _files:
+        with open(f) as fd:
+            text = fd.read()
+            for doc in ctx.obj['documents']:
+                if not re.search(doc["ref"], text):
+                    unfound.append(doc)
+
+    logger.info('%s documents not cited', len(unfound))
+
+    for j, doc in enumerate(unfound):
+        logger.info('{} {c.Back.BLACK}{c.Fore.RED}{doc: <80.80}'
+                    '{c.Style.RESET_ALL}'
+                    .format(j, doc=papis.document.describe(doc), c=colorama))
+
+
+@cli.command('import')
+@click.help_option('-h', '--help')
+@click.option('-o', '--out', help="Out folder to export", default=None)
+@papis.cli.all_option()
+@click.pass_context
+def _import(ctx: click.Context, out: Optional[str], _all: bool) -> None:
+
+    """
+    Import documents to papis
+        e.g. papis bibtex read mybib.bib import
+    """
+    docs = ctx.obj['documents']
+
+    if not _all:
+        docs = papis.api.pick_doc(docs)
+
+    if out is not None:
+        logging.info("Setting lib name to %s", out)
+        if not os.path.exists(out):
+            os.makedirs(out)
+        config.set_lib_from_name(out)
+
+    for j, doc in enumerate(docs):
+        fileValue = None
+        filepaths = []
+        for k in ["file", "FILE"]:
+            logger.info('{} {c.Back.BLACK}{c.Fore.YELLOW}{doc: <80.80}'
+                        '{c.Style.RESET_ALL}'
+                        .format(j, doc=papis.document.describe(doc),
+                                c=colorama))
+            if doc.has(k):
+                fileValue = doc[k]
+                logger.info("\tkey '%s' exists", k)
+                break
+
+        if not fileValue:
+            logger.info("\t"
+                        "{c.Back.YELLOW}{c.Fore.BLACK}"
+                        "no pdf files will be imported"
+                        "{c.Style.RESET_ALL}".format(c=colorama))
+        else:
+            filepaths = [f for f in fileValue.split(":") if os.path.exists(f)]
+
+        if not filepaths and fileValue is not None:
+            logger.info("\t"
+                        "{c.Back.BLACK}{c.Fore.RED}"
+                        "I could not find a valid file in \n"
+                        "{value}{c.Style.RESET_ALL}"
+                        .format(value=fileValue, c=colorama))
+        else:
+            logger.info("\tfound %s file(s)", len(filepaths))
+
+        papis.commands.add.run(filepaths, data=doc)

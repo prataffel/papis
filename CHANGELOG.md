@@ -1,3 +1,11 @@
+VERSION v0.12
+=============
+
+## `papis bibtex`
+- Add `import` command to import bibtex files as papis documents
+  into the library.
+
+
 VERSION v0.11
 =============
 
@@ -8,6 +16,12 @@ VERSION v0.11
 - Add the key `_papis_local_folder` so that third-party apps
   can get the documents' paths without having to go again through papis.
 
+## `papis bibtex`
+- Add `unique` command to be able to merge different bib files
+  and filter out repetitions.
+- Add `doctor` to check for fields in a bibfile.
+- Add `iscited` to check which bib items are cited in a text file.
+
 ## Add Format plugin
 - Sébastien Popoff has added a format plugin architecture, so now `jinja2`
   is available again as a plugin.
@@ -16,7 +30,7 @@ VERSION v0.11
 - Improve the reference building routine.
 - Change the default `ref-format` to
   ```
-  "{doc[title]:.15}{doc[author]:.6}{doc[year]}",
+  "{doc[title]:.15} {doc[author]:.6} {doc[year]}",
   ```
 - The default ref if no reference could be built will not be
   using the folder name as before, but using the values in the `info.yaml`
@@ -24,6 +38,11 @@ VERSION v0.11
 
 ## `papis add`
 - Create a reference at the time of adding if no reference exists.
+
+## `papis browse`
+- Add more documentation.
+- Add an `ads` handler to jump into the `ads` website of the paper
+  using a doi.
 
 
 VERSION v0.10
