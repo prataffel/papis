@@ -65,7 +65,7 @@ setup(
         "bibtexparser>=0.6.2",
         "click>=7.0.0",
         "habanero>=0.6.0",
-        "isbnlib>=3.9.1,<3.10",
+        "isbnlib>=3.9.1",
         "prompt_toolkit>=2.0.5",
         "tqdm>=4.1",
         "pygments>=2.2.0",
@@ -126,6 +126,7 @@ setup(
     ],
     package_data=dict(
         papis=[
+            "py.typed"
         ],
     ),
     data_files=data_files,
@@ -151,6 +152,7 @@ setup(
             'pmid=papis.pubmed:Importer',
             'lib=papis.commands.add:FromLibImporter',
             'folder=papis.commands.add:FromFolderImporter',
+            'isbn=papis.isbn:Importer',
         ],
         'papis.picker': [
             'papis=papis.tui.picker:Picker',
@@ -176,6 +178,7 @@ setup(
             "rm=papis.commands.rm:cli",
             "run=papis.commands.run:cli",
             "update=papis.commands.update:cli",
+            "exec=papis.commands.exec:cli",
         ],
         'papis.downloader': [
             "acs=papis.downloaders.acs:Downloader",
