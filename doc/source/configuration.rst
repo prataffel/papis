@@ -51,7 +51,7 @@ the documents in ``firefox``, for some reason, the you would write
 
 Here we wrote also the special section ``[settings]``, which sets global
 settings that are valid in all libraries. Of course, every setting set
-within ``[settings]`` can be overriden by any library through the mechanism
+within ``[settings]`` can be overridden by any library through the mechanism
 previously discussed.
 
 A more complete example of a configuration file is the following
@@ -159,7 +159,20 @@ configuration file.
 An example of a project using a local configuration file can be seen
 `here <https://github.com/alejandrogallo/datasheets/blob/master/.papis.config/>`_
 , where the repository includes documents for component datasheets
-and everytime ``papis`` is using that library the ``.papis.config``
-file is also read and some settings will be getting overriden.
+and every time ``papis`` is using that library the ``.papis.config``
+file is also read and some settings will be getting overridden.
+
+Python configuration file
+-------------------------
+
+For some users it would be useful to have a python file that gets
+loaded together with the usual configuration file, this file
+lives in your papis configuration directory with the name ``config.py``,
+for instance for most users it will be in
+
+::
+
+  ~/.config/papis/config.py
+
 
 .. include:: default-settings.rst

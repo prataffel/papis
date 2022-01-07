@@ -71,7 +71,7 @@ setup(
         "pygments>=2.2.0",
         "stevedore>=1.30",
         "python-doi>=0.1.1",
-        "typing-extensions>=3.7",
+        "typing-extensions>=3.7 ; python_version<'3.8'",
         "lxml>=4.3.5 ; python_version>'3.5'",
         "python-slugify>=1.2.6 ; python_version>'3.4'",
     ],
@@ -135,6 +135,8 @@ setup(
         'console_scripts': [
             'papis=papis.commands.default:run',
         ],
+        "papis.hook.on_edit_done" : [
+        ],
         'papis.exporter': [
             'bibtex=papis.bibtex:exporter',
             'json=papis.json:exporter',
@@ -156,6 +158,7 @@ setup(
         ],
         'papis.picker': [
             'papis=papis.tui.picker:Picker',
+            'fzf=papis.fzf:Picker',
         ],
         'papis.format': [
             'python=papis.format:PythonFormater',
@@ -164,21 +167,22 @@ setup(
         'papis.command': [
             "add=papis.commands.add:cli",
             "addto=papis.commands.addto:cli",
+            "bibtex=papis.commands.bibtex:cli",
             "browse=papis.commands.browse:cli",
             "config=papis.commands.config:cli",
             "edit=papis.commands.edit:cli",
+            "exec=papis.commands.exec:cli",
             "explore=papis.commands.explore:cli",
             "export=papis.commands.export:cli",
             "git=papis.commands.git:cli",
             "list=papis.commands.list:cli",
+            "merge=papis.commands.merge:cli",
             "mv=papis.commands.mv:cli",
-            "bibtex=papis.commands.bibtex:cli",
             "open=papis.commands.open:cli",
             "rename=papis.commands.rename:cli",
             "rm=papis.commands.rm:cli",
             "run=papis.commands.run:cli",
             "update=papis.commands.update:cli",
-            "exec=papis.commands.exec:cli",
         ],
         'papis.downloader': [
             "acs=papis.downloaders.acs:Downloader",
@@ -199,6 +203,7 @@ setup(
             "worldscientific=papis.downloaders.worldscientific:Downloader",
             "fallback=papis.downloaders.fallback:Downloader",
             "arxiv=papis.arxiv:Downloader",
+            "projecteuclid=papis.downloaders.projecteuclid:Downloader",
         ],
         'papis.explorer': [
             "lib=papis.commands.explore:lib",

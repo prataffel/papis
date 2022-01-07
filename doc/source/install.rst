@@ -38,8 +38,11 @@ You can also **update** papis with ``pip``
 Archlinux
 ---------
 
-The package `papis` is also found in the archlinux repositories
-`here <https://aur.archlinux.org/packages/papis/>`_.
+- The package `papis` is also found in the archlinux repositories
+  `here <https://aur.archlinux.org/packages/papis/>`_.
+- If you want to use the git version of ``papis`` instead
+  refer to `papis-git <https://aur.archlinux.org/packages/papis-git/>`_ package.
+  Thanks `Julian <https://julianhauser.com/>`_!.
 
 NixOS
 -----
@@ -75,10 +78,10 @@ First of all you have to get the code, open a terminal and hit
 
 ::
 
-  git clone https://github.com/alejandrogallo/papis.git
+  git clone https://github.com/papis/papis.git
 
 or download the
-`zip file <https://github.com/alejandrogallo/papis/archive/master.zip>`_.
+`zip file <https://github.com/papis/papis/archive/master.zip>`_.
 
 
 Go inside of the ``papis`` source folder and you can either use the ``Makefile``

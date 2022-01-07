@@ -74,6 +74,7 @@ Cli
 import os
 import logging
 from typing import Optional
+
 import click
 
 import papis
@@ -83,12 +84,13 @@ import papis.utils
 import papis.config
 import papis.cli
 import papis.database
-from papis.document import from_folder, Document, from_data
+import papis.document
 import papis.format
 import papis.strings
 
 
-def run(document: Document, opener: Optional[str] = None,
+def run(document: papis.document.Document,
+        opener: Optional[str] = None,
         folder: bool = False,
         mark: bool = False) -> None:
     logger = logging.getLogger('open:run')
@@ -118,14 +120,16 @@ def run(document: Document, opener: Optional[str] = None,
                 mark_dict = papis.api.pick(
                     marks,
                     header_filter=lambda x: papis.format.format(
-                        _mark_fmt, x, key=_mark_name),
+                        _mark_fmt, x, doc_key=_mark_name),
                     match_filter=lambda x: papis.format.format(
-                        _mark_fmt, x, key=_mark_name))
+                        _mark_fmt, x, doc_key=_mark_name))
                 if mark_dict:
                     if not _mark_opener:
                         raise Exception("mark-opener-format not set")
                     opener = papis.format.format(
-                        _mark_opener, from_data(mark_dict[0]), key=_mark_name)
+                            _mark_opener,
+                            papis.document.from_data(mark_dict[0]),
+                            doc_key=_mark_name)
                     logger.info("Setting opener to '%s'", opener)
                     papis.config.set("opentool", opener)
         files = document.get_files()
@@ -168,7 +172,7 @@ def cli(query: str, doc_folder: str, tool: str, folder: bool,
     logger = logging.getLogger('cli:run')
 
     if doc_folder:
-        documents = [from_folder(doc_folder)]
+        documents = [papis.document.from_folder(doc_folder)]
     else:
         documents = papis.database.get().query(query)
 

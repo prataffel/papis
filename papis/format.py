@@ -8,20 +8,28 @@ from papis.document import Document
 
 
 FormatDocType = Union[Document, Dict[str, Any]]
-LOGGER = logging.getLogger("format")
+logger = logging.getLogger("format")
 _FORMATER = None  # type: Optional[Formater]
+
+
+class InvalidFormatterValue(Exception):
+    pass
 
 
 class Formater:
     def format(self,
                fmt: str,
                doc: FormatDocType,
-               key: str = "") -> str:
+               doc_key: str = "",
+               additional: Dict[str, Any] = {}) -> str:
         """
         :param fmt: Python-like format string.
         :type  fmt: str
         :param doc: Papis document
         :type  doc: FormatDocType
+        :param doc_key: Name of the document in the format string
+        :type  doc: str
+        :param additional: Additional named keys available to the format string
         :returns: Formated string
         :rtype: str
         """
@@ -30,46 +38,49 @@ class Formater:
 
 class PythonFormater(Formater):
     """Construct a string using a pythonic format string and a document.
-    You can activate this formater by setting ``formater = python``.
+    You can activate this formatter by setting ``formater = python``.
     """
     def format(self,
                fmt: str,
                doc: FormatDocType,
-               key: str = "") -> str:
-        doc_name = key or papis.config.getstring("format-doc-name")
+               doc_key: str = "",
+               additional: Dict[str, Any] = {}) -> str:
+        doc_name = doc_key or papis.config.getstring("format-doc-name")
         fdoc = Document()
         fdoc.update(doc)
         try:
-            return fmt.format(**{doc_name: fdoc})
+            return fmt.format(**{doc_name: fdoc}, **additional)
         except Exception as exception:
             return str(exception)
 
 
 class Jinja2Formater(Formater):
     """Construct a Jinja2 formated string.
-    You can activate this formater by setting ``formater = jinja2``.
+    You can activate this formatter by setting ``formater = jinja2``.
     """
 
     def __init__(self) -> None:
         try:
             import jinja2
-        except ImportError as exception:
-            LOGGER.exception("""
+        except ImportError:
+            logger.exception("""
             You're trying to format strings using jinja2
             Jinja2 is not installed by default, so just install it
                 pip3 install jinja2
             """)
-            str(exception)
         else:
             self.jinja2 = jinja2
 
     def format(self,
                fmt: str,
                doc: FormatDocType,
-               key: str = "") -> str:
-        doc_name = key or papis.config.getstring("format-doc-name")
+               doc_key: str = "",
+               additional: Dict[str, Any] = {}) -> str:
+        doc_name = doc_key or papis.config.getstring("format-doc-name")
         try:
-            return str(self.jinja2.Template(fmt).render(**{doc_name: doc}))
+            return str(self.jinja2
+                           .Template(fmt)
+                           .render(**{doc_name: doc}, **additional))
         except Exception as exception:
             return str(exception)
 
@@ -79,7 +90,7 @@ def _extension_name() -> str:
 
 
 def get_formater() -> Formater:
-    """Get the formater named 'name' declared as a plugin"""
+    """Get the formatter named 'name' declared as a plugin"""
     global _FORMATER
     if _FORMATER is None:
         name = papis.config.getstring("formater")
@@ -87,16 +98,18 @@ def get_formater() -> Formater:
             _FORMATER = papis.plugin.get_extension_manager(
                 _extension_name())[name].plugin()
         except KeyError:
-            LOGGER.error("Invalid formater (%s)", name)
-            raise Exception(
-                "Registered formaters are: %s",
+            logger.error("Invalid formatter: %s", name)
+            raise InvalidFormatterValue(
+                "Registered formatters are: %s",
                 papis.plugin.get_available_entrypoints(_extension_name()))
-        LOGGER.debug("Getting {}".format(name))
+        logger.debug("Getting %s", name)
+
     return _FORMATER
 
 
 def format(fmt: str,
            doc: FormatDocType,
-           key: str = "") -> str:
+           doc_key: str = "",
+           additional: Dict[str, Any] = {}) -> str:
     formater = get_formater()
-    return formater.format(fmt, doc, key)
+    return formater.format(fmt, doc, doc_key=doc_key, additional=additional)

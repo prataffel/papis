@@ -7,8 +7,14 @@ Cli
 .. click:: papis.commands.edit:cli
     :prog: papis edit
 """
-import papis
 import os
+import logging
+from typing import Optional
+
+import click
+
+import papis
+import papis.hooks
 import papis.api
 import papis.pick
 import papis.document
@@ -16,12 +22,8 @@ import papis.utils
 import papis.config
 import papis.database
 import papis.cli
-import click
-import logging
 import papis.strings
 import papis.git
-
-from typing import Optional
 
 
 def run(document: papis.document.Document,
@@ -31,9 +33,17 @@ def run(document: papis.document.Document,
     info_file_path = document.get_info_file()
     if not info_file_path:
         raise Exception(papis.strings.no_folder_attached_to_document)
+    _old_dict = papis.document.to_dict(document)
     papis.utils.general_open(info_file_path, "editor", wait=wait)
     document.load()
+    _new_dict = papis.document.to_dict(document)
+
+    # If nothing changed there is nothing else to be done
+    if _old_dict != _new_dict:
+        return
+
     database.update(document)
+    papis.hooks.run("on_edit_done")
     if git:
         papis.git.add_and_commit_resource(
             str(document.get_main_folder()),
@@ -46,6 +56,7 @@ def edit_notes(document: papis.document.Document,
                git: bool = False) -> None:
     logger = logging.getLogger('edit:notes')
     logger.debug("Editing notes")
+
     if not document.has("notes"):
         document["notes"] = papis.config.getstring("notes-name")
         document.save()
@@ -55,7 +66,7 @@ def edit_notes(document: papis.document.Document,
     )
 
     if not os.path.exists(notes_path):
-        logger.debug("Creating {0}".format(notes_path))
+        logger.debug("Creating '%s'", notes_path)
         open(notes_path, "w+").close()
 
     papis.api.edit_file(notes_path)
