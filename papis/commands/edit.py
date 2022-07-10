@@ -24,12 +24,13 @@ import papis.database
 import papis.cli
 import papis.strings
 import papis.git
+import papis.format
 
 
 def run(document: papis.document.Document,
         wait: bool = True,
         git: bool = False) -> None:
-    database = papis.database.get()
+    logger = logging.getLogger('run:edit')
     info_file_path = document.get_info_file()
     if not info_file_path:
         raise Exception(papis.strings.no_folder_attached_to_document)
@@ -39,10 +40,11 @@ def run(document: papis.document.Document,
     _new_dict = papis.document.to_dict(document)
 
     # If nothing changed there is nothing else to be done
-    if _old_dict != _new_dict:
+    if _old_dict == _new_dict:
+        logger.debug("old and new are equal, doing nothing")
         return
 
-    database.update(document)
+    papis.database.get().update(document)
     papis.hooks.run("on_edit_done")
     if git:
         papis.git.add_and_commit_resource(
@@ -52,14 +54,34 @@ def run(document: papis.document.Document,
                 papis.document.describe(document)))
 
 
+def create_notes(document: papis.document.Document,
+                 notes_path: str) -> None:
+
+    templ_path = os.path.expanduser(papis.config.getstring("notes-template"))
+    templ_out = ""
+
+    if os.path.exists(templ_path):
+        with open(templ_path, 'r') as f:
+            templ_src = f.read()
+            templ_out = papis.format.format(templ_src, document)
+
+    with open(notes_path, 'w+') as f:
+        f.write(templ_out)
+
+
 def edit_notes(document: papis.document.Document,
                git: bool = False) -> None:
     logger = logging.getLogger('edit:notes')
     logger.debug("Editing notes")
 
+    db = papis.database.get()
     if not document.has("notes"):
-        document["notes"] = papis.config.getstring("notes-name")
+        notes_name = papis.config.getstring("notes-name")
+        notes_name = papis.format.format(notes_name, document)
+        document["notes"] = papis.utils.clean_document_name(notes_name)
         document.save()
+        db.update(document)
+
     notes_path = os.path.join(
         str(document.get_main_folder()),
         document["notes"]
@@ -67,7 +89,7 @@ def edit_notes(document: papis.document.Document,
 
     if not os.path.exists(notes_path):
         logger.debug("Creating '%s'", notes_path)
-        open(notes_path, "w+").close()
+        create_notes(document, notes_path)
 
     papis.api.edit_file(notes_path)
     if git:

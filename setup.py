@@ -95,6 +95,8 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Topic :: Utilities',
     ],
     extras_require=dict(
@@ -182,10 +184,12 @@ setup(
             "rename=papis.commands.rename:cli",
             "rm=papis.commands.rm:cli",
             "run=papis.commands.run:cli",
+            "serve=papis.commands.serve:cli",
             "update=papis.commands.update:cli",
         ],
         'papis.downloader': [
             "acs=papis.downloaders.acs:Downloader",
+            "acm=papis.downloaders.acm:Downloader",
             "annualreviews=papis.downloaders.annualreviews:Downloader",
             "citeseerx=papis.downloaders.citeseerx:Downloader",
             "aps=papis.downloaders.aps:Downloader",

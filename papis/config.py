@@ -48,6 +48,7 @@ general_settings = {
                         or os.environ.get('VISUAL')
                         or get_default_opener(),
     "notes-name": "notes.tex",
+    "notes-template": "",
     "use-cache": True,
     "cache-dir": None,
     "use-git": False,
@@ -76,6 +77,7 @@ general_settings = {
 
     "file-browser": get_default_opener(),
     "bibtex-journal-key": 'journal',
+    "bibtex-export-zotero-file": False,
     "extra-bibtex-keys": "[]",
     "extra-bibtex-types": "[]",
     "default-library": "papers",
@@ -594,8 +596,9 @@ def get_lib() -> papis.library.Library:
     if _CURRENT_LIBRARY is None:
         # Do not put papis.config.get because get is a special function
         # that also needs the library to see if some key was overridden!
-        default_settings = get_default_settings()[get_general_settings_name()]
-        lib = default_settings['default-library']
+        config = papis.config.get_configuration()
+        lib = config.get(papis.config.get_general_settings_name(),
+                         'default-library')
         set_lib_from_name(lib)
     assert(isinstance(_CURRENT_LIBRARY, papis.library.Library))
     return _CURRENT_LIBRARY
