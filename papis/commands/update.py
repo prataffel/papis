@@ -142,9 +142,15 @@ def cli(query: str,
 
         ctx.data.update(document)
         if set_tuples:
-            ctx.data.update(
-                {key: papis.format.format(value, document)
-                    for key, value in set_tuples})
+            processed_tuples = {}
+            for key, value in set_tuples:
+                value = papis.format.format(value, document)
+                if key == "notes":
+                    value = papis.utils.clean_document_name(value)
+                    processed_tuples[key] = value
+                else:
+                    processed_tuples[key] = value
+            ctx.data.update(processed_tuples)
 
         matching_importers = []
         if not from_importer and auto:
