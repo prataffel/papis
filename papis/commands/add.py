@@ -91,7 +91,6 @@ Cli
 import os
 import re
 import logging
-import pathlib
 from typing import List, Any, Optional, Dict, Tuple
 
 import click
@@ -110,15 +109,15 @@ import papis.downloaders
 import papis.git
 import papis.format
 
-logger = logging.getLogger('add')  # type: logging.Logger
+logger = logging.getLogger("add")  # type: logging.Logger
 
 
 class FromFolderImporter(papis.importer.Importer):
 
     """Importer that gets files and data from a valid papis folder"""
 
-    def __init__(self, **kwargs: Any):
-        papis.importer.Importer.__init__(self, name='folder', **kwargs)
+    def __init__(self, **kwargs: Any) -> None:
+        papis.importer.Importer.__init__(self, name="folder", **kwargs)
 
     @classmethod
     def match(cls, uri: str) -> Optional[papis.importer.Importer]:
@@ -138,8 +137,8 @@ class FromLibImporter(papis.importer.Importer):
     and data
     """
 
-    def __init__(self, **kwargs: Any):
-        papis.importer.Importer.__init__(self, name='lib', **kwargs)
+    def __init__(self, **kwargs: Any) -> None:
+        papis.importer.Importer.__init__(self, name="lib", **kwargs)
 
     @classmethod
     def match(cls, uri: str) -> Optional[papis.importer.Importer]:
@@ -167,19 +166,14 @@ def get_file_name(
     """Generates file name for the document
 
     :param data: Data parsed for the actual document
-    :type  data: dict
     :param original_filepath: The full path to the original file
-    :type  original_filepath: str
     :param suffix: Possible suffix to be appended to the file without
         its extension.
-    :type  suffix: str
     :returns: New file name
-    :rtype:  str
-
     """
 
     basename_limit = 150
-    file_name_opt = papis.config.get('add-file-name')
+    file_name_opt = papis.config.get("add-file-name")
     ext = papis.filetype.get_document_extension(original_filepath)
 
     if file_name_opt is None:
@@ -197,7 +191,7 @@ def get_file_name(
     # Remove extension from file_name_base, if any
     file_name_base = re.sub(
         r"([.]{0})?$".format(ext),
-        '',
+        "",
         file_name_base
     )
 
@@ -205,14 +199,12 @@ def get_file_name(
     filename_basename = papis.utils.clean_document_name(
         "{}{}".format(
             file_name_base,
-            "-" + suffix if len(suffix) > 0 else ""
+            "-" + suffix if suffix else ""
         )
     )
 
     # Adding the recognised extension
-    filename = filename_basename + '.' + ext
-
-    return filename
+    return "{}.{}".format(filename_basename, ext)
 
 
 def get_hash_folder(data: Dict[str, Any], document_paths: List[str]) -> str:
@@ -223,17 +215,16 @@ def get_hash_folder(data: Dict[str, Any], document_paths: List[str]) -> str:
 
     """
     import random
-    author = "-{:.20}".format(data["author"])\
-             if "author" in data.keys() else ""
+    author = "-{:.20}".format(data["author"]) if "author" in data else ""
 
-    document_strings = b''
+    document_strings = b""
     for docpath in document_paths:
-        with open(docpath, 'rb') as fd:
+        with open(docpath, "rb") as fd:
             document_strings += fd.read(2000)
 
     import hashlib
     md5 = hashlib.md5(
-        ''.join(document_paths).encode()
+        "".join(document_paths).encode()
         + str(data).encode()
         + str(random.random()).encode()
         + document_strings
@@ -246,11 +237,11 @@ def get_hash_folder(data: Dict[str, Any], document_paths: List[str]) -> str:
 
 
 def run(paths: List[str],
-        data: Dict[str, Any] = dict(),
+        data: Optional[Dict[str, Any]] = None,
         folder_name: Optional[str] = None,
         file_name: Optional[str] = None,
         subfolder: Optional[str] = None,
-        base_path: Optional[pathlib.Path] = None,
+        base_path: Optional[str] = None,
         confirm: bool = False,
         open_file: bool = False,
         edit: bool = False,
@@ -259,32 +250,26 @@ def run(paths: List[str],
         ) -> None:
     """
     :param paths: Paths to the documents to be added
-    :type  paths: []
     :param data: Data for the document to be added.
         If more data is to be retrieved from other sources, the data dictionary
         will be updated from these sources.
-    :type  data: dict
     :param folder_name: Name of the folder where the document will be stored
-    :type  folder_name: str
     :param file_name: File name of the document's files to be stored.
-    :type  file_name: str
     :param subfolder: Folder within the library where the document's folder
         should be stored.
-    :type  subfolder: str
     :param confirm: Whether or not to ask user for confirmation before adding.
-    :type  confirm: bool
     :param open_file: Whether or not to ask the user for opening the file
         before adding.
-    :type  open_file: bool
     :param edit: Whether or not to ask user for editing the info file
         before adding.
-    :type  edit: bool
     :param git: Whether or not to ask user for committing before adding,
         in the case of course that the library is a git repository.
-    :type  git: bool
     """
+    if data is None:
+        data = {}
+
     import tempfile
-    logger = logging.getLogger('add:run')
+    logger = logging.getLogger("add:run")
 
     # The real paths of the documents to be added
     in_documents_paths = paths
@@ -295,7 +280,7 @@ def run(paths: List[str],
 
     for p in in_documents_paths:
         if not os.path.exists(p):
-            raise IOError('Document %s not found' % p)
+            raise IOError("Document {} not found".format(p))
 
     in_documents_names = [
         papis.utils.clean_document_name(doc_path)
@@ -305,36 +290,39 @@ def run(paths: List[str],
     tmp_document = papis.document.Document(temp_dir)
 
     if base_path is None:
-        base_path = pathlib.Path(papis.config.get_lib_dirs()[0]).expanduser()
+        base_path = os.path.expanduser(papis.config.get_lib_dirs()[0])
     out_folder_path = base_path
 
     if subfolder:
-        out_folder_path /= pathlib.Path(subfolder)
+        out_folder_path = os.path.join(out_folder_path, subfolder)
 
     if not folder_name:
         out_folder_name = get_hash_folder(data, in_documents_paths)
-        out_folder_path = out_folder_path / out_folder_name
+        out_folder_path = os.path.join(out_folder_path, out_folder_name)
         logger.info("Got an automatic folder name")
     else:
         temp_doc = papis.document.Document(data=data)
-        temp_path = out_folder_path / pathlib.Path(folder_name)
-        components: List[str] = []
-        assert temp_path.is_relative_to(out_folder_path)
-        while temp_path != out_folder_path and temp_path.is_relative_to(out_folder_path):
-            path_component = temp_path.name
-            component_formatted = papis.format.format(path_component, temp_doc)
-            component_cleaned = papis.utils.clean_document_name(component_formatted)
+        temp_path = os.path.join(out_folder_path, folder_name)
+        components = []     # type: List[str]
+        while (
+                temp_path != out_folder_path
+                and papis.utils.is_relative_to(temp_path, out_folder_path)):
+            path_component = os.path.basename(temp_path)
+
+            component_cleaned = papis.utils.clean_document_name(
+                papis.format.format(path_component, temp_doc))
             components.insert(0, component_cleaned)
+
             # continue with parent path component
-            temp_path = temp_path.parent
+            temp_path = os.path.dirname(temp_path)
+
         # components are formatted in reverse order, so we add then now in the
         # right order to the path
-        for c in components:
-            out_folder_path /= c
+        out_folder_path = os.path.join(out_folder_path, *components)
 
         del temp_doc
 
-    if not out_folder_path.is_relative_to(base_path):
+    if not papis.utils.is_relative_to(out_folder_path, base_path):
         raise ValueError("formatting produced path outside of library")
 
     data["files"] = in_documents_names
@@ -345,7 +333,7 @@ def run(paths: List[str],
     # First prepare everything in the temporary directory
     from string import ascii_lowercase
     g = papis.utils.create_identifier(ascii_lowercase)
-    string_append = ''
+    string_append = ""
     if file_name is not None:  # Use args if set
         papis.config.set("add-file-name", file_name)
     new_file_list = []
@@ -377,12 +365,12 @@ def run(paths: List[str],
             import shutil
             shutil.copy(in_file_path, tmp_end_filepath)
 
-    data['files'] = new_file_list
+    data["files"] = new_file_list
 
     # reference building
-    if data.get('ref') is None:
-        data['ref'] = papis.bibtex.create_reference(data)
-        logger.info("Created reference '%s'", data['ref'])
+    if "ref" not in data:
+        data["ref"] = papis.bibtex.create_reference(data)
+        logger.info("Created reference '%s'", data["ref"])
 
     tmp_document.update(data)
     tmp_document.save()
@@ -409,9 +397,9 @@ def run(paths: List[str],
             "(Hint) Use the 'papis update' command to just update the info.")
 
         papis.tui.utils.text_area(
-            'The following document is already in your library',
+            "The following document is already in your library",
             papis.document.dump(found_document),
-            lexer_name='yaml',
+            lexer_name="yaml",
             height=20)
         confirm = True
 
@@ -419,7 +407,7 @@ def run(paths: List[str],
         for d_path in tmp_document.get_files():
             papis.utils.open_file(d_path)
     if confirm:
-        if not papis.tui.utils.confirm('Really add?'):
+        if not papis.tui.utils.confirm("Really add?"):
             return
 
     logger.info(
@@ -430,7 +418,7 @@ def run(paths: List[str],
     papis.database.get().add(tmp_document)
     if git:
         papis.git.add_and_commit_resource(
-            str(tmp_document.get_main_folder()), '.',
+            str(tmp_document.get_main_folder()), ".",
             "Add document '{0}'".format(papis.document.describe(tmp_document)))
 
 
@@ -438,7 +426,7 @@ def run(paths: List[str],
     "add",
     help="Add a document into a given library"
 )
-@click.help_option('--help', '-h')
+@click.help_option("--help", "-h")
 @click.argument("files", type=str, nargs=-1)
 @click.option(
     "-s", "--set", "set_list",
@@ -448,7 +436,7 @@ def run(paths: List[str],
 @click.option(
     "-d", "--subfolder",
     help="Subfolder in the library",
-    default=lambda: papis.config.getstring('add-subfolder'))
+    default=lambda: papis.config.getstring("add-subfolder"))
 @click.option(
     "-p", "--pick-subfolder",
     help="Pick from existing subfolders",
@@ -457,7 +445,7 @@ def run(paths: List[str],
 @click.option(
     "--folder-name",
     help="Name for the document's folder (papis format)",
-    default=lambda: papis.config.getstring('add-folder-name'))
+    default=lambda: papis.config.getstring("add-folder-name"))
 @click.option(
     "--file-name",
     help="File name for the document (papis format)",
@@ -478,15 +466,15 @@ def run(paths: List[str],
 @click.option(
     "--confirm/--no-confirm",
     help="Ask to confirm before adding to the collection",
-    default=lambda: True if papis.config.get('add-confirm') else False)
+    default=lambda: True if papis.config.get("add-confirm") else False)
 @click.option(
     "--open/--no-open", "open_file",
     help="Open file before adding document",
-    default=lambda: True if papis.config.get('add-open') else False)
+    default=lambda: True if papis.config.get("add-open") else False)
 @click.option(
     "--edit/--no-edit",
     help="Edit info file before adding document",
-    default=lambda: True if papis.config.get('add-edit') else False)
+    default=lambda: True if papis.config.get("add-edit") else False)
 @click.option(
     "--link/--no-link",
     help="Instead of copying the file to the library, create a link to"
@@ -528,14 +516,12 @@ def cli(
                 text=re.sub(r"[ \n]+", " ", import_mgr[n].plugin.__doc__)))
         return
 
-    from_importer = list(from_importer)
-    logger = logging.getLogger('cli:add')
+    logger = logging.getLogger("cli:add")
 
-    data = dict()
+    data = {}
     for data_set in set_list:
         data[data_set[0]] = data_set[1]
 
-    files = list(files)
     ctx = papis.importer.Context()
     ctx.files = [f for f in files if os.path.exists(f)]
     ctx.data.update(data)
@@ -572,11 +558,11 @@ def cli(
             logger.exception(e)
 
     if matching_importers:
-        logger.info('There are %d possible matchings', len(matching_importers))
+        logger.info("There are %d possible matchings", len(matching_importers))
 
         for importer in matching_importers:
             if importer.ctx.data:
-                logger.info('Merging data from importer %s', importer.name)
+                logger.info("Merging data from importer %s", importer.name)
                 if batch:
                     ctx.data.update(importer.ctx.data)
                 else:
@@ -586,8 +572,8 @@ def cli(
                         str(importer))
             if importer.ctx.files and (not files or force_download):
                 logger.info(
-                        "Got files %s from importer '%s'",
-                        importer.ctx.files, importer.name)
+                    "Got files %s from importer '%s'",
+                    importer.ctx.files, importer.name)
                 for f in importer.ctx.files:
                     papis.utils.open_file(f)
                     _msg = "Use this file? (from {0})".format(importer.name)
@@ -595,18 +581,18 @@ def cli(
                         ctx.files.append(f)
 
     if not ctx:
-        logger.error('There is nothing to be added')
+        logger.error("There is nothing to be added")
         return
 
     if papis.config.getboolean("time-stamp"):
         import time
-        ctx.data['time-added'] = time.strftime(papis.strings.time_format)
+        ctx.data["time-added"] = time.strftime(papis.strings.time_format)
 
-    base_path = pathlib.Path(
+    base_path = (
         papis.pick.pick_subfolder_from_lib(papis.config.get_lib_name())[0]
     ) if pick_subfolder else None
 
-    return run(
+    run(
         ctx.files,
         data=ctx.data,
         folder_name=folder_name,

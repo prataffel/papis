@@ -25,9 +25,9 @@ _OVERRIDE_VARS = {
 def get_default_opener() -> str:
     """Get the default file opener for the current system
     """
-    if sys.platform.startswith('darwin'):
+    if sys.platform.startswith("darwin"):
         return "open"
-    elif os.name == 'nt':
+    elif os.name == "nt":
         return "start"
     else:
         return "xdg-open"
@@ -41,11 +41,11 @@ general_settings = {
 
     "opentool": get_default_opener(),
     "dir-umask": 0o755,
-    "browser": os.environ.get('BROWSER') or get_default_opener(),
+    "browser": os.environ.get("BROWSER") or get_default_opener(),
     "picktool": "papis",
     "mvtool": "mv",
-    "editor": os.environ.get('EDITOR')
-                        or os.environ.get('VISUAL')
+    "editor": os.environ.get("EDITOR")
+                        or os.environ.get("VISUAL")
                         or get_default_opener(),
     "notes-name": "notes.tex",
     "notes-template": "",
@@ -61,10 +61,34 @@ general_settings = {
     "add-edit": False,
     "add-open": False,
 
-    "browse-key": 'url',
+    # papis-serve configuration
+    "serve-user-css": [],
+    "serve-user-js": [],
+    "serve-font-awesome-css": [("https://cdnjs.cloudflare.com/ajax/"
+                               "libs/font-awesome/6.2.1/css/all.min.css"),
+                               ("https://cdnjs.cloudflare.com/ajax/"
+                                "libs/font-awesome/6.2.1/css/brands.min.css"),
+                               ("https://cdnjs.cloudflare.com/ajax/"
+                                "libs/font-awesome/6.2.1/css/solid.min.css"),
+                               ],
+    "serve-bootstrap-css": ("https://cdn.jsdelivr.net/npm/"
+                            + "bootstrap@5.1.1/dist/css/bootstrap.min.css"),
+    "serve-bootstrap-js": ("https://cdn.jsdelivr.net/npm/"
+                           + "bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"),
+    "serve-jquery-js": "https://code.jquery.com/jquery-3.6.0.min.js",
+    "serve-jquery.dataTables-css": ("https://cdn.datatables.net/"
+                                    "v/bs5/dt-1.13.1/kt-2.8.0/"
+                                    "sc-2.0.7/sb-1.4.0/datatables.min.css"),
+    "serve-jquery.dataTables-js": ("https://cdn.datatables.net/"
+                                   "v/bs5/dt-1.13.1/kt-2.8.0/"
+                                   "sc-2.0.7/sb-1.4.0/datatables.min.js"),
+
+    "serve-empty-query-get-all-documents": True,
+
+    "browse-key": "url",
     "browse-query-format": "{doc[title]} {doc[author]}",
     "search-engine": "https://duckduckgo.com",
-    "user-agent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3)',
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3)",
     "scripts-short-help-regex": ".*papis-short-help: *(.*)",
     "info-name": "info.yaml",
     "doc-url-key-name": "doc_url",
@@ -77,7 +101,7 @@ general_settings = {
     "mark-opener-format": get_default_opener(),
 
     "file-browser": get_default_opener(),
-    "bibtex-journal-key": 'journal',
+    "bibtex-journal-key": "journal",
     "bibtex-export-zotero-file": False,
     "extra-bibtex-keys": "[]",
     "extra-bibtex-types": "[]",
@@ -100,21 +124,21 @@ general_settings = {
 
     "whoosh-schema-fields": "['doi']",
     "whoosh-schema-prototype":
-    '{\n'
+    "{\n"
     '"author": TEXT(stored=True),\n'
     '"title": TEXT(stored=True),\n'
     '"year": TEXT(stored=True),\n'
     '"tags": TEXT(stored=True),\n'
-    '}',
+    "}",
 
-    'unique-document-keys': "['doi','ref','isbn','isbn10','url','doc_url']",
+    "unique-document-keys": "['doi','ref','isbn','isbn10','url','doc_url']",
 
     "downloader-proxy": None,
     "bibtex-unicode": False,
 
     "time-stamp": True,
 
-    "document-description-format": '{doc[title]} - {doc[author]}',
+    "document-description-format": "{doc[title]} - {doc[author]}",
     "formater": "python",
 
     # fzf options
@@ -132,13 +156,12 @@ general_settings = {
                           "«{doc[year]:4}»"
                           "{c.Style.RESET_ALL}"
                           ":{doc[tags]}")
-}
+}  # type: Dict[str, Any]
 
 
 def get_general_settings_name() -> str:
     """Get the section name of the general settings
     :returns: Section's name
-    :rtype:  str
     >>> get_general_settings_name()
     'settings'
     """
@@ -155,16 +178,16 @@ class Configuration(configparser.ConfigParser):
         self.logger = logging.getLogger("Configuration")
         self.default_info = {
             "papers": {
-                'dir': '~/Documents/papers'
+                "dir": "~/Documents/papers"
             },
             get_general_settings_name(): {
-                'default-library': 'papers'
+                "default-library": "papers"
             }
         }  # type: PapisConfigType
         self.initialize()
 
     def handle_includes(self) -> None:
-        if "include" in self.keys():
+        if "include" in self:
             for name in self["include"]:
                 self.logger.debug("Including '%s'", name)
                 fullpath = os.path.expanduser(self.get("include", name))
@@ -194,7 +217,7 @@ class Configuration(configparser.ConfigParser):
                     self[section][field] = self.default_info[section][field]
             with open(self.file_location, "w") as configfile:
                 self.logger.info(
-                        "Creating config file at '%s'", self.file_location)
+                    "Creating config file at '%s'", self.file_location)
                 self.write(configfile)
         configpy = get_configpy_file()
         if os.path.exists(configpy):
@@ -212,7 +235,7 @@ def get_default_settings() -> PapisConfigType:
     # We use an OrderedDict so that the first entry will always be the general
     # settings, also good for automatic documentation
     if _DEFAULT_SETTINGS is None:
-        _DEFAULT_SETTINGS = dict()
+        _DEFAULT_SETTINGS = {}
         _DEFAULT_SETTINGS.update({
             get_general_settings_name(): general_settings,
         })
@@ -241,13 +264,12 @@ def register_default_settings(settings_dictionary: PapisConfigType) -> None:
         papis.config.get('command', section='hubation')
 
     :param settings_dictionary: A dictionary with settings
-    :type  settings_dictionary: dict
     """
     default_settings = get_default_settings()
     # we do a for loop because apparently the OrderedDict removes all
     # key-val fields after updating, so we have to do it by hand
-    for section in settings_dictionary.keys():
-        if section in default_settings.keys():
+    for section in settings_dictionary:
+        if section in default_settings:
             default_settings[section].update(settings_dictionary[section])
         else:
             default_settings[section] = settings_dictionary[section]
@@ -258,13 +280,12 @@ def get_config_home() -> str:
     files should be stored.
 
     :returns: Configuration base directory
-    :rtype:  str
     """
-    xdg_home = os.environ.get('XDG_CONFIG_HOME')
+    xdg_home = os.environ.get("XDG_CONFIG_HOME")
     if xdg_home:
         return os.path.expanduser(xdg_home)
     else:
-        return os.path.join(os.path.expanduser('~'), '.config')
+        return os.path.join(os.path.expanduser("~"), ".config")
 
 
 def get_config_dirs() -> List[str]:
@@ -273,15 +294,15 @@ def get_config_dirs() -> List[str]:
     """
     dirs = []  # type: List[str]
     # get_config_home should also be included on top of XDG_CONFIG_DIRS
-    if os.environ.get('XDG_CONFIG_DIRS') is not None:
+    if os.environ.get("XDG_CONFIG_DIRS") is not None:
         dirs += [
-            os.path.join(d, 'papis') for d in
-            os.environ.get('XDG_CONFIG_DIRS', '').split(':')]
+            os.path.join(d, "papis") for d in
+            os.environ.get("XDG_CONFIG_DIRS", "").split(":")]
     # Take XDG_CONFIG_HOME and $HOME/.papis for backwards
     # compatibility
     dirs += [
-        os.path.join(get_config_home(), 'papis'),
-        os.path.join(os.path.expanduser('~'), '.papis')]
+        os.path.join(get_config_home(), "papis"),
+        os.path.join(os.path.expanduser("~"), ".papis")]
     return dirs
 
 
@@ -297,7 +318,7 @@ def get_config_folder() -> str:
         if os.path.exists(config_dir):
             return config_dir
     # If no folder is found, then get the config home
-    return os.path.join(get_config_home(), 'papis')
+    return os.path.join(get_config_home(), "papis")
 
 
 def get_config_file() -> str:
@@ -351,10 +372,6 @@ def general_get(key: str, section: Optional[str] = None,
 
     :param data_type: The data type that should be expected for the value of
         the variable.
-    :type  data_type: DataType, e.g. int, src ...
-    :param default: Default value for the configuration variable if it is not
-        set.
-    :type  default: It should be the same that ``data_type``
     :param extras: List of tuples containing section and prefixes
     """
     # Init main variables
@@ -383,9 +400,9 @@ def general_get(key: str, section: Optional[str] = None,
     for extra in sections:
         sec = extra[0]
         whole_key = extra[1]
-        if sec not in config.keys():
+        if sec not in config:
             continue
-        if whole_key in config[sec].keys():
+        if whole_key in config[sec]:
             value = method(sec, whole_key)
 
     if value is None:
@@ -451,7 +468,6 @@ def getlist(key: str, section: Optional[str] = None) -> List[str]:
     """List getter
 
     :returns: A python list
-    :rtype:  list
     :raises SyntaxError: Whenever the parsed syntax is either not a valid
         python object or a valid python list.
     """
@@ -477,7 +493,6 @@ def get_configuration() -> Configuration:
     ever be configured.
 
     :returns: Configuration object
-    :rtype:  papis.config.Configuration
     """
     global _CONFIGURATION
     if _CONFIGURATION is None:
@@ -496,9 +511,7 @@ def merge_configuration_from_path(path: Optional[str],
     to the information of the configuration object stored in `configuration`.
 
     :param path: Path to the configuration file
-    :type  path: str
     :param configuration: Configuration object
-    :type  configuration: papis.config.Configuration
     """
     if path is None or not os.path.exists(path):
         return
@@ -511,13 +524,11 @@ def set_lib(library: papis.library.Library) -> None:
     """Set library
 
     :param library: Library object
-    :type  library: papis.library.Library
-
     """
     global _CURRENT_LIBRARY
     config = get_configuration()
-    if library.name not in config.keys():
-        config[library.name] = dict(dirs=str(library.paths))
+    if library.name not in config:
+        config[library.name] = {"dirs": str(library.paths)}
     _CURRENT_LIBRARY = library
 
 
@@ -525,23 +536,22 @@ def set_lib_from_name(libname: str) -> None:
     """Set library, notice that in principle library can be a full path.
 
     :param libname: Name of the library or some path to a folder
-    :type  libname: str
     """
     set_lib(get_lib_from_name(libname))
 
 
 def get_lib_from_name(libname: str) -> papis.library.Library:
     config = get_configuration()
-    if libname not in config.keys():
+    if libname not in config:
         if os.path.isdir(libname):
             # Check if the path exists, then use this path as a new library
             logger.warning(
-                    "Since the path '%s' exists, interpreting it as a library",
-                    libname)
+                "Since the path '%s' exists, interpreting it as a library",
+                libname)
             library_obj = papis.library.from_paths([libname])
             name = library_obj.path_format()
             # the configuration object can only store strings
-            config[name] = dict(dirs=str(library_obj.paths))
+            config[name] = {"dirs": str(library_obj.paths)}
         else:
             raise Exception("Library '{0}' does not seem to exist"
                             "\n\n"
@@ -553,10 +563,10 @@ def get_lib_from_name(libname: str) -> papis.library.Library:
                             .format(libname, cpath=get_config_file()))
     else:
         try:
-            paths = [os.path.expanduser(config[libname]['dir'])]
+            paths = [os.path.expanduser(config[libname]["dir"])]
         except KeyError:
             try:
-                paths = eval(os.path.expanduser(config[libname].get('dirs')))
+                paths = eval(os.path.expanduser(config[libname].get("dirs")))
             except Exception as e:
                 raise Exception("To define a library you have to set either"
                                 " dir or dirs in the configuration file.\n"
@@ -573,7 +583,6 @@ def get_lib_dirs() -> List[str]:
     """Get the directories of the current library
 
     :returns: A list of paths
-    :rtype:  list
     """
     return get_lib().paths
 
@@ -589,11 +598,10 @@ def get_lib() -> papis.library.Library:
     library name (or path) that will be taken as a default.
 
     :returns: Current library
-    :rtype:  papis.library.Library
     """
     global _CURRENT_LIBRARY
-    if os.environ.get('PAPIS_LIB'):
-        set_lib_from_name(os.environ['PAPIS_LIB'])
+    if os.environ.get("PAPIS_LIB"):
+        set_lib_from_name(os.environ["PAPIS_LIB"])
     if _CURRENT_LIBRARY is None:
         # NOTE: this cannot use `general_get` (cyclic dependency), so we have
         # to handle the `default-library` not being present in the user config
@@ -608,7 +616,7 @@ def get_lib() -> papis.library.Library:
             lib = default_settings["default-library"]
 
         set_lib_from_name(lib)
-    assert(isinstance(_CURRENT_LIBRARY, papis.library.Library))
+    assert isinstance(_CURRENT_LIBRARY, papis.library.Library)
     return _CURRENT_LIBRARY
 
 
@@ -616,7 +624,6 @@ def reset_configuration() -> Configuration:
     """Destroys existing configuration and returns a new one.
 
     :returns: Configuration object
-    :rtype:  papis.config.Configuration
     """
     global _CONFIGURATION
     _CONFIGURATION = None

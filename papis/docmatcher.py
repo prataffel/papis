@@ -1,10 +1,12 @@
 import logging
-from typing import Optional, List, Any, Callable
+from typing import Optional, Any, Callable, TYPE_CHECKING
 
 import papis.config
 import papis.document
 
 MATCHER_TYPE = Callable[[papis.document.Document, str, Optional[str]], Any]
+if TYPE_CHECKING:
+    import pyparsing
 
 
 class DocMatcher(object):
@@ -27,9 +29,9 @@ class DocMatcher(object):
     parallelize the matching.
     """
     search = ""  # type: str
-    parsed_search = []  # type: List[Any]
-    doc_format = '{%s[DOC_KEY]}' % (papis.config.getstring('format-doc-name'))
-    logger = logging.getLogger('DocMatcher')
+    parsed_search = None  # type: pyparsing.ParseResults
+    doc_format = "{%s[DOC_KEY]}" % (papis.config.getstring("format-doc-name"))
+    logger = logging.getLogger("DocMatcher")
     matcher = None  # type: Optional[MATCHER_TYPE]
 
     @classmethod
@@ -39,34 +41,32 @@ class DocMatcher(object):
         """Use the attribute `cls.parsed_search` to match the `doc` document
         to the previously parsed query.
         :param doc: Papis document to match against.
-        :type  doc: papis.document.Document
 
         >>> import papis.document
         >>> from papis.database.cache import match_document
-        >>> doc = papis.document.from_data(dict(title='einstein'))
+        >>> doc = papis.document.from_data({'title': 'einstein'})
         >>> DocMatcher.set_matcher(match_document)
-        >>> DocMatcher.parse('einste')
-        ([(['einste'], {})], {})
+        >>> result = DocMatcher.parse('einste')
         >>> DocMatcher.return_if_match(doc) is not None
         True
-        >>> DocMatcher.parse('heisenberg')
-        ([(['heisenberg'], {})], {})
+        >>> result = DocMatcher.parse('heisenberg')
         >>> DocMatcher.return_if_match(doc) is not None
         False
-        >>> DocMatcher.parse('title : ein')
-        ([(['title', ':', 'ein'], {})], {})
+        >>> result = DocMatcher.parse('title : ein')
         >>> DocMatcher.return_if_match(doc) is not None
         True
-
         """
         match = None
+        if cls.parsed_search is None:
+            return match
+
         for parsed in cls.parsed_search:
             if len(parsed) == 1:
                 search = parsed[0]
                 sformat = None
             elif len(parsed) == 3:
                 search = parsed[2]
-                sformat = cls.doc_format.replace('DOC_KEY', parsed[0])
+                sformat = cls.doc_format.replace("DOC_KEY", parsed[0])
 
             if cls.matcher is not None:
                 match = doc if cls.matcher(doc, search, sformat) else None
@@ -92,17 +92,15 @@ class DocMatcher(object):
         cls.matcher = matcher
 
     @classmethod
-    def parse(cls, search: Optional[str] = None) -> List[List[str]]:
+    def parse(cls, search: Optional[str] = None) -> "pyparsing.ParseResults":
         """Parse the main query text. This method will also set the
         class attribute `parsed_search` to the parsed query, and it will
         return it too.
         :param cls: The class object, since it is a static method
-        :type  cls: object
         :param search: Search text string if a custom search string is to be
             used. False if the `cls.search` class attribute is to be used.
-        :type  search: str
         :returns: Parsed query
-        :rtype:  list
+
         >>> print(DocMatcher.parse('hello author : einstein'))
         [['hello'], ['author', ':', 'einstein']]
         >>> print(DocMatcher.parse(''))
@@ -120,24 +118,24 @@ class DocMatcher(object):
         return cls.parsed_search
 
 
-def parse_query(query_string: str) -> List[List[str]]:
+def parse_query(query_string: str) -> "pyparsing.ParseResults":
     import pyparsing
-    logger = logging.getLogger('parse_query')
+    logger = logging.getLogger("parse_query")
     logger.debug("Parsing query: '%s'", query_string)
 
-    papis_key_word = pyparsing.Word(pyparsing.alphanums + '-._/')
-    papis_value_word = pyparsing.Word(pyparsing.alphanums + '-._/()')
+    papis_key_word = pyparsing.Word(pyparsing.alphanums + "-._/")
+    papis_value_word = pyparsing.Word(pyparsing.alphanums + "-._/()")
 
     papis_value = pyparsing.QuotedString(
-        quoteChar='"', escChar='\\', escQuote='\\'
+        quoteChar='"', escChar="\\", escQuote="\\"
     ) ^ pyparsing.QuotedString(
-        quoteChar="'", escChar='\\', escQuote='\\'
+        quoteChar="'", escChar="\\", escQuote="\\"
     ) ^ papis_value_word
 
     equal = (
-        pyparsing.ZeroOrMore(" ")
-        + pyparsing.Literal(':')
-        + pyparsing.ZeroOrMore(" ")
+        pyparsing.ZeroOrMore(pyparsing.Literal(" "))
+        + pyparsing.Literal(":")
+        + pyparsing.ZeroOrMore(pyparsing.Literal(" "))
     )
 
     papis_query = pyparsing.ZeroOrMore(
@@ -147,7 +145,7 @@ def parse_query(query_string: str) -> List[List[str]]:
             ) + papis_value
         )
     )
-    parsed = papis_query.parseString(query_string)  # type: List[List[str]]
-
+    parsed = papis_query.parseString(query_string)
     logger.debug("Parsed query: '%s'", parsed)
+
     return parsed

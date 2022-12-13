@@ -21,7 +21,7 @@ logger = logging.getLogger("external")
 def get_command_help(path: str) -> str:
     """Get help string from external commands."""
     magic_word = papis.config.getstring("scripts-short-help-regex")
-    with open(path, 'r') as _fd:
+    with open(path, "r") as _fd:
         for line in _fd:
             match = re.match(magic_word, line)
             if match:
@@ -42,9 +42,11 @@ def export_variables() -> None:
 
 
 @click.command(
-    context_settings=dict(
-        ignore_unknown_options=True,
-        help_option_names=[]))
+    context_settings={
+        "ignore_unknown_options": True,
+        "help_option_names": [],
+        }
+    )
 @click.argument("flags", nargs=-1)
 @click.pass_context
 def external_cli(ctx: click.core.Context, flags: List[str]) -> None:

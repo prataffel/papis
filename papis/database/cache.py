@@ -19,9 +19,7 @@ def get_cache_file_name(directory: str) -> str:
     """Create a cache file name out of the path of a given directory.
 
     :param directory: Folder name to be used as a seed for the cache name.
-    :type  directory: str
     :returns: Name for the cache file.
-    :rtype:  str
 
     >>> get_cache_file_name('path/to/my/lib')
     'a8c689820a94babec20c5d6269c7d488-lib'
@@ -38,7 +36,6 @@ def get_cache_file_path(directory: str) -> str:
     """Get the full path to the cache file
 
     :param directory: Library folder
-    :type  directory: str
 
     >>> import os; os.environ["XDG_CACHE_HOME"] = '/tmp'
     >>> os.path.basename(get_cache_file_path('blah/papers'))
@@ -46,7 +43,7 @@ def get_cache_file_path(directory: str) -> str:
     """
     cache_name = get_cache_file_name(directory)
     folder = os.path.expanduser(
-        os.path.join(papis.utils.get_cache_home(), 'database'))
+        os.path.join(papis.utils.get_cache_home(), "database"))
     if not os.path.exists(folder):
         os.makedirs(folder)
     return os.path.join(folder, cache_name)
@@ -58,11 +55,8 @@ def filter_documents(
     """Filter documents. It can be done in a multi core way.
 
     :param documents: List of papis documents.
-    :type  documents: papis.documents.Document
     :param search: Valid papis search string.
-    :type  search: str
     :returns: List of filtered documents
-    :rtype:  list
 
     >>> document = papis.document.from_data({'author': 'einstein'})
     >>> len(filter_documents([document], search="einstein")) == 1
@@ -73,7 +67,7 @@ def filter_documents(
     False
 
     """
-    logger = logging.getLogger('filter')
+    logger = logging.getLogger("filter")
     papis.docmatcher.DocMatcher.set_search(search)
     papis.docmatcher.DocMatcher.parse()
     papis.docmatcher.DocMatcher.set_matcher(match_document)
@@ -83,14 +77,14 @@ def filter_documents(
     # FIXME: find a better solution for this that works for both OSes
     if sys.platform == "win32":
         logger.debug(
-                "Filtering %d docs (search '%s')", len(documents), search)
+            "Filtering %d docs (search '%s')", len(documents), search)
         filtered_docs = [
             d for d in [papis.docmatcher.DocMatcher.return_if_match(d)
                         for d in documents] if d is not None]
 
     else:
         logger.debug(
-                "Filtering %d docs (search '%s')", len(documents), search)
+            "Filtering %d docs (search '%s')", len(documents), search)
         result = \
             papis.utils.parmap(papis.docmatcher.DocMatcher.return_if_match,
                                documents)
@@ -108,14 +102,10 @@ def match_document(
     """Main function to match document to a given search.
 
     :param document: Papis document
-    :type  document: papis.document.Document
     :param search: A valid search string
-    :type  search: str
     :param match_format: Python-like format string.
-        (`see <
-            https://docs.python.org/2/library/string.html#format-string-syntax
-        >`_)
-    :type  match_format: str
+        (`see here
+        <https://docs.python.org/2/library/string.html#format-string-syntax>`__)
     :returns: Non false if matches, true-ish if it does match.
 
     >>> papis.config.set('match-format', '{doc[author]}')
@@ -137,9 +127,7 @@ def get_regex_from_search(search: str) -> str:
     r"""Creates a default regex from a search string.
 
     :param search: A valid search string
-    :type  search: str
     :returns: Regular expression
-    :rtype: str
 
     >>> get_regex_from_search(' ein 192     photon')
     '.*ein.*192.*photon.*'
@@ -152,14 +140,14 @@ def get_regex_from_search(search: str) -> str:
 
 class Database(papis.database.base.Database):
 
-    def __init__(self, library: Optional[papis.library.Library] = None):
+    def __init__(self, library: Optional[papis.library.Library] = None) -> None:
         papis.database.base.Database.__init__(self, library)
-        self.logger = logging.getLogger('db:cache')
+        self.logger = logging.getLogger("db:cache")
         self.documents = None  # type: Optional[List[papis.document.Document]]
         self.initialize()
 
     def get_backend_name(self) -> str:
-        return 'papis'
+        return "papis"
 
     def initialize(self) -> None:
         pass
@@ -174,10 +162,10 @@ class Database(papis.database.base.Database):
                 "Getting documents from cache in '%s'", cache_path)
 
             import pickle
-            with open(cache_path, 'rb') as fd:
+            with open(cache_path, "rb") as fd:
                 self.documents = pickle.load(fd)
         else:
-            self.logger.info('Indexing library, this might take a while...')
+            self.logger.info("Indexing library, this might take a while...")
             folders = sum([
                 papis.utils.get_folders(d)
                 for d in self.get_dirs()], [])  # type: List[str]
@@ -188,20 +176,20 @@ class Database(papis.database.base.Database):
         return self.documents
 
     def add(self, document: papis.document.Document) -> None:
-        self.logger.debug('Adding document...')
+        self.logger.debug("Adding document...")
 
         docs = self.get_documents()
         docs.append(document)
-        assert(docs[-1].get_main_folder() == document.get_main_folder())
+        assert docs[-1].get_main_folder() == document.get_main_folder()
         _folder = document.get_main_folder()
-        assert(_folder is not None)
-        assert(os.path.exists(_folder))
+        assert _folder is not None
+        assert os.path.exists(_folder)
         self.save()
 
     def update(self, document: papis.document.Document) -> None:
         if not papis.config.getboolean("use-cache"):
             return
-        self.logger.debug('Updating document...')
+        self.logger.debug("Updating document...")
 
         docs = self.get_documents()
         result = self._locate_document(document)
@@ -212,7 +200,7 @@ class Database(papis.database.base.Database):
     def delete(self, document: papis.document.Document) -> None:
         if not papis.config.getboolean("use-cache"):
             return
-        self.logger.debug('Deleting document...')
+        self.logger.debug("Deleting document...")
 
         docs = self.get_documents()
         result = self._locate_document(document)
@@ -235,8 +223,7 @@ class Database(papis.database.base.Database):
     def query_dict(
             self, dictionary: Dict[str, str]) -> List[papis.document.Document]:
         query_string = " ".join(
-            ["{}:\"{}\" ".format(key, val)
-                for key, val in dictionary.items()])
+            ['{}:"{}" '.format(key, val) for key, val in dictionary.items()])
         return self.query(query_string)
 
     def query(self, query_string: str) -> List[papis.document.Document]:
@@ -251,14 +238,14 @@ class Database(papis.database.base.Database):
             return filter_documents(docs, query_string)
 
     def get_all_query_string(self) -> str:
-        return '.'
+        return "."
 
     def get_all_documents(self) -> List[papis.document.Document]:
         return self.get_documents()
 
     def save(self) -> None:
         docs = self.get_documents()
-        self.logger.debug('Saving %d documents...', len(docs))
+        self.logger.debug("Saving %d documents...", len(docs))
 
         import pickle
         path = self._get_cache_file_path()
@@ -272,11 +259,11 @@ class Database(papis.database.base.Database):
             self,
             document: papis.document.Document
             ) -> List[Tuple[int, papis.document.Document]]:
-        assert(isinstance(document, papis.document.Document))
+        assert isinstance(document, papis.document.Document)
         result = list(filter(
             lambda d: d[1].get_main_folder() == document.get_main_folder(),
             enumerate(self.get_documents())))
-        if len(result) == 0:
+        if not result:
             raise Exception(
-                'The document passed could not be found in the library')
+                "The document passed could not be found in the library")
         return result

@@ -64,7 +64,7 @@ import papis.cli
 import papis.pick
 import papis.format
 
-logger = logging.getLogger('list')
+logger = logging.getLogger("list")
 
 
 def run(
@@ -82,7 +82,6 @@ def run(
     """Main method to the list command
 
     :returns: List different objects
-    :rtype:  list
     """
     if downloaders:
         return [str(d) for d in papis.downloaders.get_available_downloaders()]
@@ -97,9 +96,9 @@ def run(
     if libraries:
         config = papis.config.get_configuration()
         return [
-            section + ' ' + config[section]['dir']
+            section + " " + config[section]["dir"]
             for section in config
-            if 'dir' in config[section]]
+            if "dir" in config[section]]
 
     if files:
         return [
@@ -109,12 +108,12 @@ def run(
         ]
     elif notes:
         return [
-            os.path.join(d.get_main_folder() or '', d["notes"])
+            os.path.join(d.get_main_folder() or "", d["notes"])
             for d in documents
             if d.get_main_folder() is not None
             and d.has("notes") and isinstance(d["notes"], str)
             and os.path.exists(
-                        os.path.join(d.get_main_folder() or '', d["notes"]))]
+                os.path.join(d.get_main_folder() or "", d["notes"]))]
     elif info_files:
         return [d.get_info_file() for d in documents]
     elif fmt:
@@ -132,7 +131,7 @@ def run(
 
 
 @click.command("list")
-@click.help_option('--help', '-h')
+@click.help_option("--help", "-h")
 @papis.cli.query_option()
 @papis.cli.sort_option()
 @click.option(
@@ -160,7 +159,7 @@ def run(
     "--format", "_format",
     help="List entries using a custom papis format, e.g."
     " '{doc[year] {doc[title]}",
-    default='')
+    default="")
 @click.option(
     "--template",
     help="Template file containing a papis format to list entries",
@@ -184,7 +183,7 @@ def cli(
         sort_field: Optional[str], sort_reverse: bool) -> None:
     """List documents' properties"""
 
-    logger = logging.getLogger('cli:list')
+    logger = logging.getLogger("cli:list")
     documents = []  # type: List[papis.document.Document]
 
     if (not libraries and not downloaders

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class Context:
     def __init__(self) -> None:
-        self.data = dict()  # type: Dict[str, Any]
+        self.data = {}   # type: Dict[str, Any]
         self.files = []  # type: List[str]
 
     def __bool__(self) -> bool:
@@ -24,12 +24,10 @@ class Importer:
     """This is the base class for every importer"""
 
     def __init__(self, uri: str = "", name: str = "",
-                 ctx: Optional[Context] = None):
+                 ctx: Optional[Context] = None) -> None:
         """
         :param uri: uri
-        :type  uri: str
         :param name: Name of the importer
-        :type  name: str
         """
         self.ctx = ctx or Context()  # type: Context
         self.uri = uri  # type: str
@@ -37,7 +35,7 @@ class Importer:
         self.logger = logging.getLogger("importer:{}".format(self.name))
 
     @classmethod
-    def match(cls, uri: str) -> Optional['Importer']:
+    def match(cls, uri: str) -> Optional["Importer"]:
         """This method should be called to know if a given uri matches
         the importer or not.
 
@@ -50,18 +48,16 @@ class Importer:
         falsely otherwise.
 
         :param uri: uri where the document should be retrieved from.
-        :type  uri: str
         """
         raise NotImplementedError(
             "Matching uri not implemented for this importer")
 
     @classmethod
-    def match_data(cls, data: Dict[str, Any]) -> Optional['Importer']:
+    def match_data(cls, data: Dict[str, Any]) -> Optional["Importer"]:
         """Get a dictionary of data and try to decide if there is
         a valid uri in it.
 
         :param data: Data to look into
-        :type  data: dict
         """
         raise NotImplementedError(
             "Matching data not implemented for this importer")
@@ -70,14 +66,13 @@ class Importer:
         """
         can return a dict to update the document with
         """
-        try:
+        from contextlib import suppress
+
+        with suppress(NotImplementedError):
             self.fetch_data()
-        except NotImplementedError:
-            pass
-        try:
+
+        with suppress(NotImplementedError):
             self.fetch_files()
-        except NotImplementedError:
-            pass
 
     def fetch_data(self) -> None:
         raise NotImplementedError()
@@ -86,7 +81,7 @@ class Importer:
         raise NotImplementedError()
 
     def __str__(self) -> str:
-        return 'Importer({0}, uri={1})'.format(self.name, self.uri)
+        return "Importer({}, uri={})".format(self.name, self.uri)
 
 
 def _extension_name() -> str:
@@ -103,7 +98,6 @@ def get_import_mgr() -> "ExtensionManager":
 def available_importers() -> List[str]:
     """Get the available importer names.
     :returns: List of importer names
-    :rtype:  list(str)
     """
     return papis.plugin.get_available_entrypoints(_extension_name())
 
@@ -117,9 +111,7 @@ def get_importers() -> List[Type[Importer]]:
 def get_importer_by_name(name: str) -> Type[Importer]:
     """Get importer by name
     :param name: Name of the importer
-    :type  name: str
     :returns: The importer
-    :rtype:  Importer
     """
     imp = get_import_mgr()[name].plugin  # type: Type[Importer]
     return imp

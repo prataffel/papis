@@ -8,11 +8,13 @@ _K = papis.document.KeyConversionPair
 
 
 def _page_to_pages(data: List[Dict[str, str]]) -> str:
-    if len(data) == 0:
+    if not data:
         raise RuntimeError("No data to turn to pages")
+
     x = data[0]
-    if not {"first-page", "last-page"} & x.keys():
+    if "first-page" not in x or "last-page" not in x:
         raise RuntimeError("first-page and last-page not found")
+
     return "{0}--{1}".format(x["first-page"], x["last-page"])
 
 
@@ -48,10 +50,11 @@ script_keyconv = [
 
 class Downloader(papis.downloaders.Downloader):
 
-    def __init__(self, url: str):
-        papis.downloaders.Downloader.__init__(
-            self, url, name="sciencedirect")
-        self.expected_document_extension = 'pdf'
+    def __init__(self, url: str) -> None:
+        super().__init__(
+            url, name="sciencedirect",
+            expected_document_extension="pdf",
+            )
 
     @classmethod
     def match(cls, url: str) -> Optional[papis.downloaders.Downloader]:
@@ -62,9 +65,9 @@ class Downloader(papis.downloaders.Downloader):
 
     def get_data(self) -> Dict[str, Any]:
         global script_keyconv
-        data = dict()  # type: Dict[str, Any]
+        data = {}  # type: Dict[str, Any]
         soup = self._get_soup()
-        scripts = soup.find_all(name="script", attrs={'data-iso-key': '_0'})
+        scripts = soup.find_all(name="script", attrs={"data-iso-key": "_0"})
         if scripts:
             import json
             rawdata = json.loads(scripts[0].text)
@@ -77,5 +80,5 @@ class Downloader(papis.downloaders.Downloader):
             #       way
             # data.update(converted_data["_abstract_data"])
             # data.update(converted_data["_author_data"])
-            data['author'] = papis.document.author_list_to_author(data)
+            data["author"] = papis.document.author_list_to_author(data)
         return data

@@ -6,13 +6,12 @@ import papis.downloaders.fallback
 
 class Downloader(papis.downloaders.fallback.Downloader):
 
-    def __init__(self, url: str):
-        papis.downloaders.fallback.Downloader.__init__(
-            self,
-            uri=url,
-            name="aps")
-        self.expected_document_extension = 'pdf'
-        self.priority = 10
+    def __init__(self, url: str) -> None:
+        super().__init__(
+            url, name="aps",
+            expected_document_extension="pdf",
+            priority=10,
+            )
 
     @classmethod
     def match(
@@ -21,7 +20,7 @@ class Downloader(papis.downloaders.fallback.Downloader):
 
     def get_bibtex_url(self) -> Optional[str]:
         burl = "{}?{}".format(
-            re.sub(r'/abstract', r'/export', self.uri),
+            re.sub(r"/abstract", r"/export", self.uri),
             "type=bibtex&download=true")
         self.logger.debug("bibtex url = '%s'", burl)
         return burl

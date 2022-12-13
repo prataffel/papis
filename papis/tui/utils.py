@@ -8,21 +8,17 @@ def confirm(prompt_string: str,
     """Confirm with user input
 
     :param prompt_string: Question or text that the user gets.
-    :type  prompt_string: str
     :param yes: If yes should be the default.
-    :type  yes: bool
     :returns: True if go ahead, False if stop
-    :rtype:  bool
-
     """
     result = prompt(prompt_string,
                     bottom_toolbar=bottom_toolbar,
-                    default='Y/n' if yes else 'y/N',
-                    validator_function=lambda x: x in 'YyNn',
+                    default="Y/n" if yes else "y/N",
+                    validator_function=lambda x: x in "YyNn",
                     dirty_message='Please, write either "y" or "n" to confirm')
     if yes:
-        return result not in 'Nn'
-    return result in 'Yy'
+        return result not in "Nn"
+    return result in "Yy"
 
 
 def text_area(title: str,
@@ -34,16 +30,11 @@ def text_area(title: str,
     Small implementation of an editor/pager for small pieces of text.
 
     :param title: Title of the text_area
-    :type  title: str
     :param text: Editable text
-    :type  text: str
     :param lexer_name: If the editable text should be highlighted with
         some kind of grammar, examples are ``yaml``, ``python`` ...
-    :type  lexer_name: str
     :param height: Max height of the text area
-    :type  height: int
     :param full_screen: Whether or not the text area should be full screen.
-    :type  full_screen: bool
     """
     from prompt_toolkit import Application
     from prompt_toolkit.enums import EditingMode
@@ -63,11 +54,11 @@ def text_area(title: str,
     buffer1 = Buffer()
     buffer1.text = text
 
-    @kb.add('c-q')  # type: ignore
+    @kb.add("c-q")  # type: ignore
     def exit_(event: Event) -> None:
         event.app.exit(0)
 
-    @kb.add('c-s')  # type: ignore
+    @kb.add("c-s")  # type: ignore
     def save_(event: Event) -> None:
         event.app.return_text = buffer1.text
 
@@ -80,16 +71,16 @@ def text_area(title: str,
     pygment_lexer = find_lexer_class_by_name(lexer_name)
     lexer = PygmentsLexer(pygment_lexer)
     text_window = Window(height=text_height,
-                         style='bg:black fg:ansiwhite',
+                         style="bg:black fg:ansiwhite",
                          content=BufferControl(buffer=buffer1, lexer=lexer))
 
     root_container = HSplit([
         Window(
             align=WindowAlign.LEFT,
-            style='bg:ansiwhite',
+            style="bg:ansiwhite",
             height=1,
             content=FormattedTextControl(
-                text=[('fg:ansiblack bg:ansiwhite', title)]
+                text=[("fg:ansiblack bg:ansiwhite", title)]
             ),
             always_hide_cursor=True
         ),
@@ -100,10 +91,10 @@ def text_area(title: str,
             height=1,
             width=None,
             align=WindowAlign.LEFT,
-            style='bg:ansiwhite',
+            style="bg:ansiwhite",
             content=FormattedTextControl(
                 text=[(
-                    'fg:ansiblack bg:ansiwhite',
+                    "fg:ansiblack bg:ansiwhite",
                     "Quit [Ctrl-q]  Save [Ctrl-s]"
                 )]
             )
@@ -127,10 +118,10 @@ def yes_no_dialog(title: str, text: str) -> Any:
     from prompt_toolkit.styles import Style
 
     example_style = Style.from_dict({
-        'dialog': 'bg:#88ff88',
-        'dialog frame-label': 'bg:#ffffff #000000',
-        'dialog.body': 'bg:#000000 #00ff00',
-        'dialog shadow': 'bg:#00aa00',
+        "dialog": "bg:#88ff88",
+        "dialog frame-label": "bg:#ffffff #000000",
+        "dialog.body": "bg:#000000 #00ff00",
+        "dialog shadow": "bg:#00aa00",
     })
 
     return yes_no_dialog(title=title, text=text, style=example_style)
@@ -146,12 +137,8 @@ def prompt(
     """Prompt user for input
 
     :param prompt_string: Question or text that the user gets.
-    :type  prompt_string: str
     :param default: Default value to give if the user does not input anything
-    :type  default: str
     :returns: User input or default
-    :rtype:  bool
-
     """
     import prompt_toolkit
     import prompt_toolkit.validation
@@ -165,9 +152,9 @@ def prompt(
         validator = None
 
     fragments = [
-        ('', prompt_string),
-        ('fg:red', ' ({0})'.format(default)),
-        ('', ': '),
+        ("", prompt_string),
+        ("fg:red", " ({0})".format(default)),
+        ("", ": "),
     ]
 
     result = prompt_toolkit.prompt(fragments,
@@ -176,14 +163,14 @@ def prompt(
                                    bottom_toolbar=bottom_toolbar,
                                    validate_while_typing=True)
 
-    return str(result) if result else default
+    return result or default
 
 
 def get_range(range_str: str) -> List[int]:
     range_regex = re.compile(r"(\d+)-?(\d+)?")
     try:
         return sum([
-            list(range(int(p[0]), int(p[1] if p[1] else p[0])+1))
+            list(range(int(p[0]), int(p[1] if p[1] else p[0]) + 1))
             for p in range_regex.findall(range_str)], [])
     except ValueError:
         return []
