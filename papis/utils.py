@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import logging
+import pathlib
 from itertools import count, product
 from typing import (Optional, List, Iterator, Any, Dict,
                     Union, Callable, TypeVar)
@@ -12,6 +13,7 @@ try:
     HAS_MULTIPROCESSING = True
 except ImportError:
     HAS_MULTIPROCESSING = False
+
 
 import papis.config
 import papis.exceptions
@@ -275,9 +277,4 @@ def update_doc_from_data_interactively(
 
 
 def is_relative_to(path: str, other: str) -> bool:
-    # TODO: switch to pathlib.Path.is_relative_to for python >=3.9
-    try:
-        os.path.relpath(path, start=other)
-        return True
-    except ValueError:
-        return False
+    return pathlib.Path(path).is_relative_to(other)
