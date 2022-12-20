@@ -13,6 +13,9 @@ try:
 except ImportError:
     HAS_MULTIPROCESSING = False
 
+if sys.version_info >= (3, 9):
+    import pathlib
+
 import papis.config
 import papis.exceptions
 import papis.importer
@@ -275,7 +278,8 @@ def update_doc_from_data_interactively(
 
 
 def is_relative_to(path: str, other: str) -> bool:
-    # TODO: switch to pathlib.Path.is_relative_to for python >=3.9
+    if sys.version_info >= (3, 9):
+        return pathlib.Path(path).is_relative_to(other)
     try:
         os.path.relpath(path, start=other)
         return True
