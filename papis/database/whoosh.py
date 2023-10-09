@@ -121,7 +121,7 @@ class Database(papis.database.base.Database):
 
         import whoosh.qparser
         index = self.get_index()
-        qp = whoosh.qparser.MultifieldParser(["title", "author", "tags"],
+        qp = whoosh.qparser.MultifieldParser(["title", "author", "tags", "alias"],
                                              schema=self.get_schema())
         qp.add_plugin(whoosh.qparser.FuzzyTermPlugin())
         query = qp.parse(query_string)

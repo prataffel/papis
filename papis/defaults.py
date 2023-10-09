@@ -169,6 +169,7 @@ settings: Dict[str, Any] = {
     '"author": TEXT(stored=True),\n'
     '"title": TEXT(stored=True),\n'
     '"year": TEXT(stored=True),\n'
+    '"alias": TEXT(stored=True),\n'
     '"tags": TEXT(stored=True),\n'
     "}",
 
