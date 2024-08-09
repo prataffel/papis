@@ -10,158 +10,140 @@ Installation
 Using pip
 ---------
 
-The easiest way of installing papis is using the ``PyPi`` repositories and
-the package manager ``pip3``, just open a terminal and type in
+The easiest way of installing Papis is using the ``PyPI`` repositories and
+the ``pip`` package manager. Open a terminal and type in
 
-::
+.. code:: sh
 
-  pip3 install papis
+    pip install papis
 
-If you are on GNU/Linux like systems you might need to type ``sudo``
+If you are on GNU/Linux-like systems you might need to type ``sudo`` to install
+Papis globally like
 
-::
+.. code:: sh
 
-  sudo pip3 install papis
+    sudo pip install papis
 
-or if you prefer installing it locally then simply type
+If you prefer installing it locally then simply type
 
-::
+.. code:: sh
 
-  pip3 install --user papis
+    pip install --user papis
 
-You can also **update** papis with ``pip``
+You can also **update** Papis with ``pip``
 
-::
+.. code:: sh
 
-  pip3 install --upgrade papis
+    pip install --upgrade papis
 
 
-Archlinux
----------
+Arch Linux
+----------
 
-- The package `papis` is also found in the archlinux repositories
+- The ``papis`` package is found in the Arch Linux AUR repository
   `here <https://aur.archlinux.org/packages/papis/>`__.
-- If you want to use the git version of ``papis`` instead
-  refer to `papis-git <https://aur.archlinux.org/packages/papis-git/>`__ package.
-  Thanks `Julian <https://julianhauser.com/>`__!.
+  Thanks to `Joshua <https://jpellis.me/>`__ for maintaining this packages!.
+- If you want to use the git version of ``papis`` instead, you can try
+  the `papis-git <https://aur.archlinux.org/packages/papis-git/>`__ package.
+  Thanks to `Julian <https://julianhauser.com/>`__ for maintaining this packages!.
+
+You can install either one with your favorite AUR helper, e.g.
+
+.. code:: sh
+
+    yay -S papis
 
 NixOS
 -----
 
 If you are running `NixOS <https://nixos.org/>`__ or you have the
 `nix <https://github.com/NixOS/nix>`__ package manager installed, you can install
-papis by running:
+Papis by running:
 
-::
+.. code:: sh
 
-  nix-env -i papis
+    nix-env -i papis
 
-If you like papis, just clone the repository
+For the development version, just clone the repository
 
-::
+.. code:: sh
 
-  git clone git@github.com:papis/papis.git
-  cd papis
+    git clone git@github.com:papis/papis.git
+    cd papis
 
-and start hacking it with:
+and start hacking it with
 
-::
+.. code:: sh
 
-  nix-shell --expr 'with import <nixpkgs> {}; papis.overrideDerivation (drv: { src = ./.; })'
+    nix-shell --expr 'with import <nixpkgs> {}; papis.overrideDerivation (drv: { src = ./.; })'
 
 This command will provide you a shell with all the dependencies required.
 
 
+Guix
+----
+
+.. note::
+
+    At this moment there are no recipes for Papis in the main Guix repositories.
+    If such a recipe is added, it is recommended to install from the official
+    sources.
+
+If you are running the `Guix System <https://guix.gnu.org/>`__ or you have the
+`guix <https://guix.gnu.org/>`__ package manager installed and you would like
+to install ``papis`` the 'Guix way', you can use the included recipe from
+:download:`python-papis.scm <../../contrib/python-papis.scm>`. This recipe can
+be downloaded locally and installed using
+
+.. code:: sh
+
+    guix package --install-from-file=python-papis.scm
+
+This Guix recipe was made by running the following command
+
+.. code:: sh
+
+  guix import pypi papis@0.13 --recursive
+
+manually fixing some dependencies and switching off some failing tests so
+that the package could be build with Guix. This can be used for newer versions
+until an official recipe in the main Guix repositories is published.
+
 From source
 -----------
 
-First of all you have to get the code, open a terminal and hit
+To install Papis from source, you can clone the repository using
 
-::
+.. code:: sh
 
-  git clone https://github.com/papis/papis.git
+    git clone https://github.com/papis/papis.git
 
 or download the
 `zip file <https://github.com/papis/papis/archive/refs/heads/main.zip>`__.
 
+Go inside of the ``papis`` source folder and you can install it in a standard
+fashion. For example, using ``pip``
 
-Go inside of the ``papis`` source folder and you can install it with ``python3``.
+.. code:: sh
 
-The general command that you have to hit is by using the ``setup.py`` script:
+    python -m pip install .
 
-.. code:: python
+If you want to install it locally because you don't have administrative
+rights on your computer you can simply type
 
-  python3 setup.py install
+.. code:: sh
 
-
-Again, if you want to install it locally because you don't have administrative
-rights on your computer you simply type
-
-.. code:: python
-
-  python3 setup.py install --user
-
-If you want to work on the code, you can alternatively hit
-
-.. code:: python
-
-  python3 setup.py develop --user
-
+    python -m pip install --user .
 
 .. warning::
 
-  If you install the package locally, the program ``papis`` will be installed
-  by default into your ``~/.local/bin`` directory, so that you will have to
-  set your ``PATH`` accordingly.
+    If you install the package locally, the program ``papis`` will be installed
+    by default into your ``~/.local/bin`` directory, so that you will have to
+    set your ``PATH`` accordingly.
 
-  One way of doing this in ``bash`` shells (``Linux`` and the like, also
-  ``Ubuntu`` on Windows or ``cygwin``) is by adding the following line to your
-  ``~/.bashrc`` file
-  ::
+    One way of doing this in Bash shells (Linux, Ubuntu on Windows or Cygwin) is
+    by adding the following line to your ``~/.bashrc`` file::
 
-    export PATH=$PATH:$HOME/.local/bin
+    .. code:: sh
 
-
-Requirements
-------------
-
-Papis needs the following packages that are sometimes not installed with the
-system ``python3`` distribution
-
-::
-
-    python3-setuptools
-
-However if you have a general enough python distribution they should be
-installed.
-
-
-Running tests
--------------
-
-In order to run the necessary tests to submit a pull request,
-make sure that the following commands pass
-
-
-::
-
-  python -m pytest papis/ tests/ --cov=papis
-  python -m mypy papis
-  python -m flake8 papis
-
-for it, make sure that you have ``pytest``, ``flake8`` and ``mypy``
-installed.
-
-You can make sure that you have everything you need to run the tests
-by doing in the root directory
-
-::
-
-   pip install .[develop]
-
-this command installs the necessary dependencies for developing
-and running the tests. Look inside of the file ``setup.py`` for
-further information.
-
-You can also look at the folder ``tools`` for scripts used in the
-CI testing phase for further context.
+        export PATH=$PATH:$HOME/.local/bin

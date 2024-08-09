@@ -6,6 +6,7 @@ import papis.downloaders.base
 
 
 class Downloader(papis.downloaders.Downloader):
+    """Retrieve documents from `USENIX <https://www.usenix.org>`__"""
 
     def __init__(self, url: str):
         super().__init__(
@@ -24,13 +25,13 @@ class Downloader(papis.downloaders.Downloader):
 
     def get_identifier(self) -> Optional[str]:
         """
-        >>> d = Downloader("https://www.usenix.org/conference/usenixsecurity22/presentation/bulekov")  # noqa: E501
+        >>> d = Downloader("https://www.usenix.org/conference/usenixsecurity22/presentation/bulekov")
         >>> d.get_identifier()
         'usenixsecurity22-bulekov'
-        >>> d = Downloader("https://www.usenix.org/conference/nsdi23/presentation/liu-tianfeng")  # noqa: E501
+        >>> d = Downloader("https://www.usenix.org/conference/nsdi23/presentation/liu-tianfeng")
         >>> d.get_identifier()
         'nsdi23-liu-tianfeng'
-        """
+        """  # noqa: E501
         o = urlparse(self.uri)
         path = o.path
         path_components = list(path.split("/"))
@@ -41,10 +42,10 @@ class Downloader(papis.downloaders.Downloader):
 
     def get_document_url(self) -> Optional[str]:
         """
-        >>> d = Downloader("https://www.usenix.org/conference/usenixsecurity22/presentation/bulekov")  # noqa: E501
+        >>> d = Downloader("https://www.usenix.org/conference/usenixsecurity22/presentation/bulekov")
         >>> d.get_document_url()
         'https://www.usenix.org/system/files/sec22-bulekov.pdf'
-        """
+        """  # noqa: E501
 
         import bs4
 
@@ -83,12 +84,12 @@ class Downloader(papis.downloaders.Downloader):
 
     def get_bibtex_url(self) -> Optional[str]:
         """
-        >>> d = Downloader("https://www.usenix.org/conference/usenixsecurity22/presentation/bulekov")  # noqa: E501
+        >>> d = Downloader("https://www.usenix.org/conference/usenixsecurity22/presentation/bulekov")
         >>> d.get_document_url()
         'https://www.usenix.org/system/files/sec22-bulekov.pdf'
         >>> d.get_bibtex_url()
         'https://www.usenix.org/biblio/export/bibtex/277148'
-        """
+        """  # noqa: E501
         o = urlparse(self.uri)
         import bs4
 

@@ -1,13 +1,27 @@
 import os
+import sys
 import pytest
 
-from tests.testlib import TemporaryLibrary, PapisRunner
+from papis.testing import TemporaryLibrary, PapisRunner
 
-script = os.path.join(os.path.dirname(__file__), "scripts.py")
+
+def get_mock_script(name: str) -> str:
+    """Constructs a command call for a command mocked by ``scripts.py``.
+
+    :param name: the name of the command, e.g. ``ls`` or ``echo``.
+    :returns: a string of the command
+    """
+    import sys
+
+    script = os.path.join(os.path.dirname(__file__), "scripts.py")
+
+    from papis.config import escape_interp
+
+    return escape_interp("{} {} {}".format(sys.executable, script, name))
 
 
 @pytest.mark.library_setup(settings={
-    "file-browser": "echo"
+    "file-browser": get_mock_script("echo")
     })
 def test_open_cli(tmp_library: TemporaryLibrary) -> None:
     from papis.commands.open import cli
@@ -31,7 +45,20 @@ def test_open_cli(tmp_library: TemporaryLibrary) -> None:
         catch_exceptions=True)
     assert result.exit_code == 0
 
+    # Use a mock scriptlet
     result = cli_runner.invoke(
         cli,
-        ["--tool", "python {} echo".format(script), "--mark", "--all", "Krishnamurti"])
+        ["--tool", get_mock_script("echo"),
+         "--mark", "--all", "Krishnamurti"])
+    assert result.exit_code == 0
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="uses windows commands")
+def test_open_windows_cli(tmp_library: TemporaryLibrary) -> None:
+    from papis.commands.open import cli
+    cli_runner = PapisRunner()
+
+    result = cli_runner.invoke(
+        cli,
+        ["--tool", "cmd.exe /c type", "--all", "Krishnamurti"])
     assert result.exit_code == 0

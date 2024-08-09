@@ -1,5 +1,5 @@
 """
-The papis command-line (without any subcommands) can be used to set configuration
+The ``papis`` command (without any subcommands) can be used to set configuration
 options or select the library.
 
 Examples
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 logger = papis.logging.get_logger(__name__)
 
 
-class MultiCommand(click.core.MultiCommand):
+class ScriptLoaderGroup(click.Group):
 
     scripts = papis.commands.get_all_scripts()
     script_names = sorted(scripts)
@@ -56,8 +56,8 @@ class MultiCommand(click.core.MultiCommand):
     def list_commands(self, ctx: click.core.Context) -> List[str]:
         """List all matched commands in the command folder and in path
 
-        >>> mc = MultiCommand()
-        >>> rv = mc.list_commands(None)
+        >>> group = ScriptLoaderGroup()
+        >>> rv = group.list_commands(None)
         >>> len(rv) > 0
         True
         """
@@ -69,11 +69,11 @@ class MultiCommand(click.core.MultiCommand):
             name: str) -> Optional[click.core.Command]:
         """Get the command to be run
 
-        >>> mc = MultiCommand()
-        >>> cmd = mc.get_command(None, 'add')
+        >>> group = ScriptLoaderGroup()
+        >>> cmd = group.get_command(None, 'add')
         >>> cmd.name, cmd.help
         ('add', 'Add...')
-        >>> mc.get_command(None, 'this command does not exist')
+        >>> group.get_command(None, 'this command does not exist')
         Command ... is unknown!
         """
         try:
@@ -87,11 +87,11 @@ class MultiCommand(click.core.MultiCommand):
                 click.echo("Command '{name}' is unknown! Did you mean '{matches}'?"
                            .format(name=name, matches="' or '".join(matches)))
             else:
-                click.echo("Command '{name}' is unknown!".format(name=name))
+                click.echo(f"Command '{name}' is unknown!")
 
             # return the match if there was only one match
             if len(matches) == 1:
-                click.echo("I suppose you meant: '{}'".format(matches[0]))
+                click.echo(f"I suppose you meant: '{matches[0]}'")
                 script = self.scripts[matches[0]]
             else:
                 return None
@@ -102,7 +102,7 @@ class MultiCommand(click.core.MultiCommand):
         # If it gets here, it means that it is an external script
         import copy
         from papis.commands.external import external_cli
-        cli: click.Command = copy.copy(external_cli)
+        cli = copy.copy(external_cli)
 
         from papis.commands.external import get_command_help
         cli.context_settings["obj"] = script
@@ -110,7 +110,6 @@ class MultiCommand(click.core.MultiCommand):
             cli.help = get_command_help(script.path)
         cli.name = script.command_name
         cli.short_help = cli.help
-
         return cli
 
 
@@ -123,25 +122,22 @@ def generate_profile_writing_function(profiler: "cProfile.Profile",
     return _on_finish
 
 
-@click.group(                           # type: ignore[arg-type,type-var]
-    cls=MultiCommand,
-    invoke_without_command=True)
+@click.group(
+    cls=ScriptLoaderGroup,
+    invoke_without_command=False)
 @click.help_option("--help", "-h")
 @click.version_option(version=papis.__version__)
-@click.option(
-    "-v",
-    "--verbose",
+@papis.cli.bool_flag(
+    "-v", "--verbose",
     help="Make the output verbose (equivalent to --log DEBUG)",
-    default="PAPIS_DEBUG" in os.environ,
-    is_flag=True)
+    default="PAPIS_DEBUG" in os.environ)
 @click.option(
     "--profile",
     help="Print profiling information into file",
     type=click.Path(),
     default=None)
 @click.option(
-    "-l",
-    "--lib",
+    "-l", "--lib",
     help="Choose a library name or library path (unnamed library)",
     default=lambda: papis.config.getstring("default-library"))
 @click.option(
@@ -150,16 +146,9 @@ def generate_profile_writing_function(profiler: "cProfile.Profile",
     help="Configuration file to use",
     type=click.Path(exists=True),
     default=None)
-@click.option(
+@papis.cli.bool_flag(
     "--pick-lib",
-    help="Pick library to use",
-    default=False,
-    is_flag=True)
-@click.option(
-    "--cc", "--clear-cache", "clear_cache",
-    help="Clear cache of the library used",
-    default=False,
-    is_flag=True)
+    help="Pick library to use")
 @click.option(
     "-s", "--set", "set_list",
     type=(str, str),
@@ -186,14 +175,15 @@ def generate_profile_writing_function(profiler: "cProfile.Profile",
     help="Use number of processors for multicore functionalities in papis",
     type=str,
     default=None)
-def run(verbose: bool,
+@click.pass_context
+def run(ctx: click.Context,
+        verbose: bool,
         profile: str,
         config: str,
         lib: str,
         log: str,
         logfile: Optional[str],
         pick_lib: bool,
-        clear_cache: bool,
         set_list: List[Tuple[str, str]],
         color: str,
         np: Optional[int]) -> None:
@@ -225,33 +215,50 @@ def run(verbose: bool,
 
     # read in configuration from current library
     if pick_lib:
-        picked_libs = papis.pick.pick(papis.api.get_libraries())
+        picked_libs = papis.pick.pick_library()
         if picked_libs:
             lib = picked_libs[0]
 
     papis.config.set_lib_from_name(lib)
     library = papis.config.get_lib()
 
-    if not library.paths:
-        raise RuntimeError(
-            "Library '{}' does not have any existing folders attached to it. "
-            "Please define and create the paths in the configuration file"
-            .format(lib))
-
-    # Now the library should be set, let us check if there is a
-    # local configuration file there, and if there is one, then
-    # merge its contents
-    local_config_file = papis.config.getstring("local-config-file")
-    for path in library.paths:
-        local_config_path = os.path.expanduser(os.path.join(path, local_config_file))
-        papis.config.merge_configuration_from_path(
-            local_config_path,
-            papis.config.get_configuration())
+    if library.paths:
+        # Now the library should be set, let us check if there is a
+        # local configuration file there, and if there is one, then
+        # merge its contents
+        local_config_file = papis.config.getstring("local-config-file")
+        for path in library.paths:
+            local_config_path = os.path.expanduser(
+                os.path.join(path, local_config_file))
+            papis.config.merge_configuration_from_path(
+                local_config_path,
+                papis.config.get_configuration())
+    else:
+        config_file = papis.config.get_config_file()
+        if os.path.exists(config_file):
+            logger.error(
+                "Library '%s' does not have any folders attached to it. Please "
+                "create and add the required paths to the configuration file.",
+                library)
+        elif ctx.invoked_subcommand != "init":
+            logger.warning("No configuration file exists at '%s'.", config_file)
+            logger.warning("Create a configuration file and define your "
+                           "libraries before using papis. You can use "
+                           "'papis init /path/to/my/library' for a quick "
+                           "interactive setup.")
 
     # read in configuration from command-line
+    sections = papis.config.get_configuration().sections()
     for pair in set_list:
-        logger.debug("Setting '%s' to '%s'.", *pair)
-        papis.config.set(pair[0], pair[1])
+        # NOTE: search for a matching section so that we can overwrite entries
+        # from the command-line as well (the section takes precedence)
+        key, value, section = pair[0], pair[1], None
+        for s in sections:
+            if key.startswith(s):
+                key, section = key[len(s) + 1:], s
 
-    if clear_cache:
-        papis.database.get().clear()
+        logger.debug("Setting '%s' to '%s' (section '%s').",
+                     key, value,
+                     section if section else papis.config.GENERAL_SETTINGS_NAME)
+
+        papis.config.set(key, value, section=section)

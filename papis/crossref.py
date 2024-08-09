@@ -93,6 +93,8 @@ type_converter = {
     "standard": "techreport",
 }
 
+# NOTE: fields checked against the official API format
+# https://github.com/CrossRef/rest-api-doc/blob/583a8dbad0a063da4aa5ec319df33130a26ef650/api_format.md
 key_conversion = [
     KeyConversionPair("DOI", [{"key": "doi", "action": None}]),
     KeyConversionPair("URL", [{"key": "url", "action": None}]),
@@ -109,7 +111,14 @@ key_conversion = [
     # "issued": {"key": "",},
     KeyConversionPair("language", [papis.document.EmptyKeyConversion]),
     KeyConversionPair("abstract", [papis.document.EmptyKeyConversion]),
-    KeyConversionPair("ISBN", [{"key": "isbn", "action": None}]),
+    KeyConversionPair("ISBN", [{
+        "key": "isbn",
+        "action": lambda x: x[0] if isinstance(x, list) else x
+    }]),
+    KeyConversionPair("isbn-type", [{
+        "key": "isbn",
+        "action": lambda x: [i for i in x if i["type"] == "electronic"][0]["value"]
+    }]),
     KeyConversionPair("page", [{
         "key": "pages",
         "action": lambda p: re.sub(r"(-[^-])", r"-\1", p),
@@ -147,8 +156,12 @@ key_conversion = [
     KeyConversionPair("event", [  # Conferences
         {"key": "venue", "action": lambda x: x["location"]},
         {"key": "booktitle", "action": lambda x: x["name"]},
-        {"key": "year", "action": lambda x: _crossref_date_parts(x["start"], 0)},
-        {"key": "month", "action": lambda x: _crossref_date_parts(x["start"], 1)},
+        {"key": "year",
+         "action": (lambda x:
+                    _crossref_date_parts(x["start"], 0) if "start" in x else None)},
+        {"key": "month",
+         "action": (lambda x:
+                    _crossref_date_parts(x["start"], 1) if "start" in x else None)},
     ]),
 ]  # List[papis.document.KeyConversionPair]
 
@@ -268,10 +281,10 @@ def doi_to_data(doi_string: str) -> Dict[str, Any]:
     if results:
         return results[0]
     raise ValueError(
-        "Could not retrieve data for DOI '{}' from Crossref".format(doi_string))
+        f"Could not retrieve data for DOI '{doi_string}' from Crossref")
 
 
-@click.command("crossref")              # type: ignore[arg-type]
+@click.command("crossref")
 @click.pass_context
 @click.help_option("--help", "-h")
 @click.option("--query", "-q", help="General query", default="")
@@ -447,20 +460,21 @@ class FromCrossrefImporter(papis.importer.Importer):
             papis.document.from_data(d)
             for d in get_data(query=self.uri)]
 
-        if docs:
-            self.logger.info("Got %d matches, picking...", len(docs))
-            docs = list(papis.pick.pick_doc(docs))
+        if not docs:
+            return
 
-            if not docs:
-                return
+        self.logger.warning(
+            "Crossref query '%s' returned %d results. Picking the first one!",
+            self.uri, len(docs))
 
-            doc = docs[0]
-            importer = Importer(uri=doc["doi"])
-            importer.fetch()
-            self.ctx.data = importer.ctx.data.copy()
+        doc = docs[0]
+        importer = Importer(uri=doc["doi"])
+        importer.fetch()
+        self.ctx.data = importer.ctx.data.copy()
 
 
 class Downloader(papis.downloaders.Downloader):
+    """Retrieve documents by DOI from `Crossref <https://www.crossref.org>`__"""
 
     def __init__(self, uri: str) -> None:
         super().__init__(uri=uri, name="doi")

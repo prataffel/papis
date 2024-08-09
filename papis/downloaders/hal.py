@@ -5,6 +5,8 @@ import papis.downloaders.fallback
 
 
 class Downloader(papis.downloaders.fallback.Downloader):
+    """Retrieve documents from the `HAL <https://hal.science>`__ family of websites"""
+
     # NOTE: this only advertises subdomains maintained by CCSD
     # https://www.ccsd.cnrs.fr/2022/06/hal-archives-ouvertes-fr-va-devenir-hal-science/
 
@@ -33,11 +35,11 @@ class Downloader(papis.downloaders.fallback.Downloader):
     def match(
             cls, url: str) -> Optional[papis.downloaders.fallback.Downloader]:
         subdomains = "|".join(cls.SUPPORTED_ARCHIVES_OUVERTES_SUBDOMAINS)
-        if re.match(r".*({})\.archives-ouvertes\.fr.*".format(subdomains), url):
+        if re.match(fr".*({subdomains})\.archives-ouvertes\.fr.*", url):
             return Downloader(url)
 
         subdomains = r"|".join(cls.SUPPORTED_HAL_SCIENCE_SUBDOMAINS)
-        if re.match(r".*//({})\.science.*".format(subdomains), url):
+        if re.match(fr".*//({subdomains})\.science.*", url):
             return Downloader(url)
 
         return None

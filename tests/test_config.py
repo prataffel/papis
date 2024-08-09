@@ -3,7 +3,7 @@ import re
 import sys
 import pytest
 
-from tests.testlib import TemporaryConfiguration
+from papis.testing import TemporaryConfiguration
 
 
 def test_default_opener(tmp_config: TemporaryConfiguration) -> None:
@@ -12,7 +12,7 @@ def test_default_opener(tmp_config: TemporaryConfiguration) -> None:
     if sys.platform.startswith("darwin"):
         assert papis.defaults.get_default_opener() == "open"
     elif sys.platform.startswith("win"):
-        assert papis.defaults.get_default_opener() == "start"
+        assert papis.defaults.get_default_opener() == "cmd.exe /c start"
     else:
         assert papis.defaults.get_default_opener() == "xdg-open"
 
@@ -31,40 +31,21 @@ def test_get_config_paths(tmp_config: TemporaryConfiguration) -> None:
     assert papis.config.get_scripts_folder() == scriptsdir
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="uses linux paths")
-def test_get_config_home(tmp_config: TemporaryConfiguration, monkeypatch) -> None:
+def test_get_config_home(tmp_config: TemporaryConfiguration,
+                         monkeypatch: pytest.MonkeyPatch) -> None:
     import papis.config
-
-    with monkeypatch.context() as m:
-        m.delenv("XDG_CONFIG_HOME", raising=False)
-        assert re.match(r".+config", papis.config.get_config_home()) is not None
+    assert re.match(r".+papis", papis.config.get_config_home()) is not None
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="uses linux paths")
-def test_get_config_dirs(tmp_config: TemporaryConfiguration, monkeypatch) -> None:
-    import tempfile
-    import papis.config
-    tmpdir = tempfile.gettempdir()
+def test_config_interpolation() -> None:
+    with TemporaryConfiguration(prefix="papis%test%") as tmp_config:
+        import papis.config
 
-    with monkeypatch.context() as m:
-        m.setenv("XDG_CONFIG_HOME", tmpdir)
-        m.delenv("XDG_CONFIG_DIRS", raising=False)
+        assert papis.config.get("dir", section=tmp_config.libname) == tmp_config.libdir
 
-        dirs = papis.config.get_config_dirs()
-        assert os.environ.get("XDG_CONFIG_DIRS") is None
-        assert len(dirs) == 2
-        assert os.path.join("/", "tmp", "papis") == dirs[0]
-
-    with monkeypatch.context() as m:
-        m.setenv("XDG_CONFIG_DIRS", "/etc/:/usr/local/etc")
-        m.setenv("XDG_CONFIG_HOME", os.path.expanduser("~"))
-
-        dirs = papis.config.get_config_dirs()
-        assert len(dirs) == 4
-        assert os.path.abspath("/etc/papis") == os.path.abspath(dirs[0])
-        assert os.path.abspath("/usr/local/etc/papis") == os.path.abspath(dirs[1])
-        assert os.path.expanduser("~/papis") == os.path.abspath(dirs[2])
-        assert os.path.expanduser("~/.papis") == os.path.abspath(dirs[3])
+        papis.config.set("some_value", "value1")
+        papis.config.set("more_value", "more_%(some_value)s")
+        assert papis.config.get("more_value") == "more_value1"
 
 
 def test_set(tmp_config: TemporaryConfiguration) -> None:
@@ -78,35 +59,35 @@ def test_set(tmp_config: TemporaryConfiguration) -> None:
 
 def test_get(tmp_config: TemporaryConfiguration) -> None:
     import papis.config
-    general_name = papis.config.get_general_settings_name()
+    section = papis.config.get_general_settings_name()
     libname = papis.config.get_lib_name()
 
     papis.config.set("test_get", "value1")
     assert papis.config.get("test_get") == "value1"
-    assert papis.config.get("test_get", section=general_name) == "value1"
+    assert papis.config.get("test_get", section=section) == "value1"
 
     papis.config.set("test_get", "value42", section=libname)
     assert papis.config.get("test_get") == "value42"
     assert papis.config.get("test_get", section=libname) == "value42"
-    assert papis.config.get("test_get", section=general_name) == "value1"
+    assert papis.config.get("test_get", section=section) == "value1"
 
     papis.config.set("test_getint", "42")
     assert papis.config.getint("test_getint") == 42
-    assert papis.config.getint("test_getint", section=general_name) == 42
-    assert type(papis.config.getint("test_getint", section=general_name)) is int
+    assert papis.config.getint("test_getint", section=section) == 42
+    assert isinstance(papis.config.getint("test_getint", section=section), int)
 
     papis.config.set("test_getfloat", "3.14")
     assert papis.config.getfloat("test_getfloat") == 3.14
-    assert papis.config.getfloat("test_getfloat", section=general_name) == 3.14
-    assert type(papis.config.getfloat("test_getfloat", section=general_name)) is float
+    assert papis.config.getfloat("test_getfloat", section=section) == 3.14
+    assert isinstance(papis.config.getfloat("test_getfloat", section=section), float)
 
     papis.config.set("test_getbool", "True")
     assert papis.config.getboolean("test_getbool") is True
-    assert papis.config.getboolean("test_getbool", section=general_name) is True
+    assert papis.config.getboolean("test_getbool", section=section) is True
 
     papis.config.set("test_getbool", "False")
     assert papis.config.getboolean("test_getbool") is False
-    assert papis.config.getboolean("test_getbool", section=general_name) is False
+    assert papis.config.getboolean("test_getbool", section=section) is False
 
     import papis.exceptions
     with pytest.raises(papis.exceptions.DefaultSettingValueMissing):
@@ -150,7 +131,8 @@ def test_get_types(tmp_config: TemporaryConfiguration) -> None:
         value = papis.config.getboolean("boolean_config")
 
 
-def test_get_configuration(tmp_config: TemporaryConfiguration, monkeypatch) -> None:
+def test_get_configuration(tmp_config: TemporaryConfiguration,
+                           monkeypatch: pytest.MonkeyPatch) -> None:
     import papis.config
 
     general_name = papis.config.get_general_settings_name()
@@ -209,6 +191,7 @@ def test_set_lib_from_path(tmp_config: TemporaryConfiguration) -> None:
     import papis.config
 
     assert tmp_config.libdir is not None
+
     papis.config.set_lib_from_name(tmp_config.libdir)
     assert papis.config.get_lib_name() == tmp_config.libdir
 
@@ -217,7 +200,9 @@ def test_set_lib_from_real_lib(tmp_config: TemporaryConfiguration) -> None:
     import papis.config
 
     libname = "test-set-lib"
-    papis.config.set("dir", tmp_config.libdir, section=libname)
+    papis.config.set("dir",
+                     papis.config.escape_interp(tmp_config.libdir),
+                     section=libname)
 
     assert tmp_config.libdir is not None
     assert os.path.exists(tmp_config.libdir)
@@ -294,24 +279,13 @@ def test_get_list(tmp_config: TemporaryConfiguration) -> None:
 
     papis.config.set("super-key-list", "[asdf,2,3,4]")
     assert papis.config.get("super-key-list") == "[asdf,2,3,4]"
-    try:
+
+    with pytest.raises(SyntaxError, match="must be a valid Python object"):
         papis.config.getlist("super-key-list")
-    except SyntaxError as e:
-        assert (
-            str(e) == (
-                "The key 'super-key-list' must be a valid Python object: "
-                "[asdf,2,3,4]")
-        )
 
     papis.config.set("super-key-list", "2")
     assert papis.config.get("super-key-list") == "2"
     assert papis.config.getint("super-key-list") == 2
-    try:
+
+    with pytest.raises(SyntaxError, match="must be a valid Python list"):
         papis.config.getlist("super-key-list")
-    except SyntaxError as e:
-        assert (
-            str(e) == (
-                "The key 'super-key-list' must be a valid Python list. "
-                "Got: 2 (type 'int')"
-            )
-        )

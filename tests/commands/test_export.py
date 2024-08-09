@@ -3,7 +3,7 @@ import tempfile
 
 import papis.database
 
-from tests.testlib import TemporaryLibrary, PapisRunner
+from papis.testing import TemporaryLibrary, PapisRunner
 
 
 def test_export_run(tmp_library: TemporaryLibrary) -> None:
@@ -66,7 +66,7 @@ def test_export_json_cli(tmp_library: TemporaryLibrary) -> None:
 
     assert len(data) == 1
     assert "Krishnamurti" in data[0]["author"]
-    assert data[0]["year"] == "2009"
+    assert data[0]["year"] == 2009
 
     outfile = os.path.join(tmp_library.tmpdir, "test.json")
     result = cli_runner.invoke(
@@ -96,7 +96,7 @@ def test_export_yaml_cli(tmp_library: TemporaryLibrary) -> None:
     data = yaml.safe_load(result.output)
 
     assert "Krishnamurti" in data["author"]
-    assert data["year"] == "2009"
+    assert data["year"] == 2009
 
     outfile = os.path.join(tmp_library.tmpdir, "test.yaml")
     result = cli_runner.invoke(
@@ -145,7 +145,7 @@ def test_export_folder_all_cli(tmp_library: TemporaryLibrary) -> None:
 
     import glob
     dirs = glob.glob(os.path.join(outdir, "*"))
-    assert len(dirs) == 6
+    assert len(dirs) == 8
 
     for d in dirs:
         assert os.path.exists(d)

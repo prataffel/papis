@@ -5,6 +5,7 @@ import papis.downloaders.base
 
 
 class Downloader(papis.downloaders.Downloader):
+    """Retrieve documents from `World Scientific <https://www.worldscientific.com>`__"""
 
     def __init__(self, url: str) -> None:
         super().__init__(
@@ -36,8 +37,7 @@ class Downloader(papis.downloaders.Downloader):
         return None
 
     def get_document_url(self) -> Optional[str]:
-        durl = ("https://www.worldscientific.com/doi/pdf/{doi}"
-                .format(doi=self.get_doi()))
+        durl = f"https://www.worldscientific.com/doi/pdf/{self.get_doi()}"
         self.logger.debug("Using document URL: '%s'.", durl)
         return durl
 

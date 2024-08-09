@@ -1,6 +1,9 @@
 import os
 import configparser
-from typing import Dict, Any, List, Optional, Callable  # noqa: F401
+from typing import Dict, Any, List, Optional, Callable
+
+import click
+import platformdirs
 
 import papis.exceptions
 import papis.library
@@ -51,7 +54,7 @@ class Configuration(configparser.ConfigParser):
         self.file_location: str = get_config_file()
         self.default_info: PapisConfigType = {
             "papers": {
-                "dir": "~/Documents/papers"
+                "dir": os.path.join(platformdirs.user_documents_dir(), "papers")
             },
             GENERAL_SETTINGS_NAME: {
                 "default-library": "papers"
@@ -66,47 +69,57 @@ class Configuration(configparser.ConfigParser):
         for name in self["include"]:
             fullpath = os.path.expanduser(self.get("include", name))
             if os.path.exists(fullpath):
-                logger.debug("Including file '%s'.", name)
                 self.read(fullpath)
-            else:
-                logger.warning("'%s' not included because it does not exist.",
-                               fullpath)
+
+    def include_defaults(self) -> None:
+        for section in self.default_info:
+            self[section] = {}
+            for field in self.default_info[section]:
+                self[section][field] = self.default_info[section][field]
 
     def initialize(self) -> None:
-        # ensure all configuration directories exist
-        if not os.path.exists(self.dir_location):
-            logger.warning("Creating configuration folder in '%s'.", self.dir_location)
-            os.makedirs(self.dir_location)
+        deprecated_config = _get_deprecated_config_folder()
+        has_deprecated_config = (
+            self.dir_location != deprecated_config
+            and os.path.exists(deprecated_config))
 
-        if not os.path.exists(self.scripts_location):
-            logger.warning(
-                "Creating scripts folder in '%s'", self.scripts_location)
-            os.makedirs(self.scripts_location)
+        # ensure all configuration directories exist
+        if os.path.exists(self.dir_location):
+            if has_deprecated_config:
+                click.echo(
+                    f"The configuration is loaded from '{self.dir_location}'. A "
+                    "deprecated configuration folder was found at "
+                    f"'{deprecated_config}' and skipped. Please remove it to "
+                    "avoid seeing this warning in the future.")
+        else:
+            if has_deprecated_config:
+                click.echo(
+                    "A deprecated configuration folder was found at "
+                    f"'{deprecated_config}' and has been copied to the new "
+                    f"location '{self.dir_location}'. Please remove the deprecated "
+                    "folder to avoid seeing this warning in the future.")
+
+                import shutil
+                shutil.copytree(deprecated_config, self.dir_location)
+            else:
+                self.include_defaults()
+                return
 
         # load settings
         if os.path.exists(self.file_location):
-            logger.debug("Reading configuration from '%s'.", self.file_location)
             try:
                 self.read(self.file_location)
                 self.handle_includes()
             except configparser.DuplicateOptionError as exc:
-                logger.error("%s: %s", type(exc).__name__, exc, exc_info=exc)
+                click.echo("Failed to read configuration file "
+                           f"'{self.file_location}'.")
+                click.echo(f"Error: Duplicate option '{exc.option}' "
+                           f"in section {exc.section}")
                 raise SystemExit(1)
 
         # if no sections were actually read, add default ones
         if not self.sections():
-            logger.warning(
-                "No sections were found in the configuration file. "
-                "Adding default ones (with a default library named 'papers')!")
-
-            for section in self.default_info:
-                self[section] = {}
-                for field in self.default_info[section]:
-                    self[section][field] = self.default_info[section][field]
-
-            with open(self.file_location, "w") as configfile:
-                logger.info("Creating configuration file at '%s'.", self.file_location)
-                self.write(configfile)
+            self.include_defaults()
 
         # ensure the general section and default-library exist in the config
         if GENERAL_SETTINGS_NAME not in self:
@@ -115,17 +128,11 @@ class Configuration(configparser.ConfigParser):
                 libs[0] if libs else
                 self.default_info[GENERAL_SETTINGS_NAME]["default-library"])
 
-            logger.warning(
-                "No main '%s' section found in the configuration file. "
-                "Setting '%s' as the default library!",
-                GENERAL_SETTINGS_NAME, default_library)
-
             self[GENERAL_SETTINGS_NAME] = {"default-library": default_library}
 
         # evaluate the python config
         configpy = get_configpy_file()
         if os.path.exists(configpy):
-            logger.debug("Executing configuration script '%s'.", configpy)
             with open(configpy) as fd:
                 exec(fd.read())
 
@@ -183,67 +190,74 @@ def register_default_settings(settings_dictionary: PapisConfigType) -> None:
     # NOTE: this updates existing sections in place
     for section, settings in settings_dictionary.items():
         if section in default_settings:
-            logger.warning("Updating existing section '%s'.", section)
             default_settings[section].update(settings)
         else:
             default_settings[section] = settings
 
 
-def get_config_home() -> str:
-    """
-    :returns: the base directory relative to which user specific configuration
-        files should be stored.
-    """
-    xdg_home = os.environ.get("XDG_CONFIG_HOME")
-    if xdg_home:
-        return os.path.expanduser(xdg_home)
+def _get_deprecated_config_folder() -> str:
+    xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
+    if xdg_config_home:
+        xdg_config_home = os.path.expanduser(xdg_config_home)
     else:
-        return os.path.join(os.path.expanduser("~"), ".config")
+        xdg_config_home = os.path.join(os.path.expanduser("~"), ".config")
 
+    # NOTE: configuration directories are search in the following order
+    # 1. user config in `~/.config/papis` (see XDG_CONFIG_HOME)
+    # 2. site config in `/etc/papis` (see XDG_CONFIG_DIRS)
+    # 3. deprecated config in `~/.papis`
+    config_dirs = [os.path.join(xdg_config_home, "papis")]
 
-def get_config_dirs() -> List[str]:
-    """
-    :returns: a list of directories where the configuration files might be stored.
-    """
-    dirs: List[str] = []
+    xdg_config_dirs = os.environ.get("XDG_CONFIG_DIRS")
+    if xdg_config_dirs:
+        config_dirs += [os.path.join(d, "papis") for d in xdg_config_dirs.split(":")]
 
-    # get_config_home should also be included on top of XDG_CONFIG_DIRS
-    config_dirs = os.environ.get("XDG_CONFIG_DIRS")
-    if config_dirs:
-        dirs += [os.path.join(d, "papis") for d in config_dirs.split(":")]
-
-    # NOTE: Take XDG_CONFIG_HOME and $HOME/.papis for backwards compatibility
-    dirs += [
-        os.path.join(get_config_home(), "papis"),
-        os.path.join(os.path.expanduser("~"), ".papis")]
-
-    return dirs
-
-
-def get_config_folder() -> str:
-    """Get the main configuration folder.
-
-    :returns: the folder where the configuration files are stored, e.g.
-        ``$HOME/.config/papis``, by looking in the directories returned by
-        :func:`get_config_dirs`.
-    """
-    config_dirs = get_config_dirs()
+    config_dirs += [os.path.join(os.path.expanduser("~"), ".papis")]
 
     for config_dir in config_dirs:
         if os.path.exists(config_dir):
             return config_dir
 
     # NOTE: If no folder is found, then get the config home
-    return os.path.join(get_config_home(), "papis")
+    return os.path.join(xdg_config_home, "papis")
+
+
+def get_config_home() -> str:
+    """
+    :returns: a (platform dependent) base directory relative to which user
+        specific configuration files should be stored.
+    """
+    # NOTE: this environment variable is added mainly for testing purposes, so
+    # we don't have to monkeypatch platformdirs in an awkward way
+    home = os.environ.get("PAPIS_CONFIG_DIR")
+    if home is None:
+        home = platformdirs.user_config_dir()
+    else:
+        home = os.path.dirname(home)
+
+    return home
+
+
+def get_config_folder() -> str:
+    """Get the main configuration folder.
+
+    :returns: a (platform dependent) folder where the configuration files are
+        stored, e.g. ``$HOME/.config/papis`` on POSIX platforms.
+    """
+    folder = os.environ.get("PAPIS_CONFIG_DIR")
+    if folder is None:
+        # FIXME: should also check XDG_CONFIG_DIRS as we did before
+        folder = platformdirs.user_config_dir("papis")
+
+    return folder
 
 
 def get_config_file() -> str:
     """Get the main configuration file.
 
-    This file can be changed by :func:`set_config_file`.
-
-    :returns: the path of the main configuration file, e.g. ``$CONFIG_FOLDER/config``,
-        in the directory returned by :func:`get_config_folder`.
+    :returns: the path of the main configuration file, which by default is in
+        :func:`get_config_folder`, but can be overwritten using
+        :func:`set_config_file`.
     """
 
     global OVERRIDE_VARS
@@ -265,16 +279,21 @@ def set_config_file(filepath: str) -> None:
 
 
 def get_configpy_file() -> str:
-    """
-    :returns: the path of the main Python configuration file, e.g.
-        ``$CONFIG_FOLDER/config.py``.
+    r"""Get the main Python configuration file.
+
+    This is a file that will get automatically :func:`eval`\ ed if it exists
+    and allows for more dynamic configuration.
+
+    :returns: the path of the main Python configuration file, which by default
+        is in :func:`get_config_folder`.
     """
     return os.path.join(get_config_folder(), "config.py")
 
 
 def get_scripts_folder() -> str:
     """
-    :returns: the folder where the scripts are stored, e.g. ``$CONFIG_FOLDER/scripts``.
+    :returns: the folder where additional scripts are stored, which by default
+        is in :func:`get_config_folder`.
     """
     return os.path.join(get_config_folder(), "scripts")
 
@@ -293,7 +312,15 @@ def set(key: str, value: Any, section: Optional[str] = None) -> None:
     if not config.has_section(section):
         config.add_section(section)
 
-    config[section][key] = str(value)
+    try:
+        config[section][key] = str(value)
+    except ValueError as exc:
+        logger.error("Failed to set the key '%s' in section '%s' with value '%s'.",
+                     key, section, value)
+        logger.error("If the value contains a '%', this should be properly "
+                     "escaped (using a double percent '%%') or the proper "
+                     "interpolation syntax should be used (i.e. '%(other_key)').",
+                     exc_info=exc)
 
 
 def general_get(key: str,
@@ -360,7 +387,7 @@ def general_get(key: str,
     # If the <section> is not given, then only the general and library settings
     # are checked.
 
-    qualified_key = key if section is None else "{}-{}".format(section, key)
+    qualified_key = key if section is None else f"{section}-{key}"
     candidate_sections = (
         # NOTE: these are in overwriting order: general < custom < lib
         [(global_section, qualified_key)]
@@ -402,8 +429,7 @@ def getint(key: str, section: Optional[str] = None) -> Optional[int]:
         return general_get(key, section=section, data_type=int)
     except ValueError:
         value = general_get(key, section=section)
-        raise ValueError("Key '{}' should be an integer: '{}' is of type '{}'"
-                         .format(key, value, type(key).__name__))
+        raise ValueError("Key '{}' should be an integer: '{}'".format(key, value))
 
 
 def getfloat(key: str, section: Optional[str] = None) -> Optional[float]:
@@ -417,8 +443,7 @@ def getfloat(key: str, section: Optional[str] = None) -> Optional[float]:
         return general_get(key, section=section, data_type=float)
     except ValueError:
         value = general_get(key, section=section)
-        raise ValueError("Key '{}' should be a float: '{}' is of type '{}'"
-                         .format(key, value, type(key).__name__))
+        raise ValueError("Key '{}' should be a float: '{}'".format(key, value))
 
 
 def getboolean(key: str, section: Optional[str] = None) -> Optional[bool]:
@@ -432,8 +457,7 @@ def getboolean(key: str, section: Optional[str] = None) -> Optional[bool]:
         return general_get(key, section=section, data_type=bool)
     except ValueError:
         value = general_get(key, section=section)
-        raise ValueError("Key '{}' should be a boolean: '{}' is of type '{}'"
-                         .format(key, value, type(key).__name__))
+        raise ValueError("Key '{}' should be a boolean: '{}'" .format(key, value))
 
 
 def getstring(key: str, section: Optional[str] = None) -> str:
@@ -445,8 +469,7 @@ def getstring(key: str, section: Optional[str] = None) -> str:
     """
     result = general_get(key, section=section, data_type=str)
     if not isinstance(result, str):
-        raise ValueError("Key '{}' should be a string: '{}' is of type '{}'"
-                         .format(key, result, type(key).__name__))
+        raise ValueError("Key '{}' should be a string: '{}'".format(key, result))
 
     return str(result)
 
@@ -472,8 +495,8 @@ def getlist(key: str, section: Optional[str] = None) -> List[str]:
         rawvalue = eval(rawvalue)
     except Exception:
         raise SyntaxError(
-            "The key '{}' must be a valid Python object: {}"
-            .format(key, rawvalue))
+            f"The key '{key}' must be a valid Python object: {rawvalue}"
+            )
     else:
         if not isinstance(rawvalue, list):
             raise SyntaxError(
@@ -526,7 +549,8 @@ def set_lib(library: papis.library.Library) -> None:
 
     if library.name not in config:
         # NOTE: can't use set(...) here due to cyclic dependencies
-        config[library.name] = {"dirs": str(library.paths)}
+        paths = [escape_interp(path) for path in library.paths]
+        config[library.name] = {"dirs": str(paths)}
 
     CURRENT_LIBRARY = library
 
@@ -547,23 +571,28 @@ def get_lib_from_name(libname: str) -> papis.library.Library:
         to an existing folder that should be considered a library.
     """
     config = get_configuration()
+    default_settings = get_default_settings()
+    libs = get_libs_from_config(config)
 
-    if libname not in config:
+    if libname not in libs:
         if os.path.isdir(libname):
             logger.warning("Setting path '%s' as the main library folder.", libname)
 
             lib = papis.library.from_paths([libname])
             # NOTE: can't use set(...) here due to cyclic dependencies
-            config[lib.name] = {"dirs": str(lib.paths)}
+            config[lib.name] = {"dirs": str([escape_interp(libname)])}
         else:
             raise RuntimeError(
-                "Library '{lib}' does not seem to exist. "
+                f"Library '{libname}' does not seem to exist. "
                 "To add a library simply write the following "
-                "in your configuration file located at '{config}'\n\n"
-                "\t[{lib}]\n"
-                "\tdir = path/to/your/{lib}/folder"
-                .format(lib=libname, config=get_config_file()))
+                f"in your configuration file located at '{get_config_file()}'\n\n"
+                f"\t[{libname}]\n"
+                f"\tdir = path/to/your/{libname}/folder"
+                )
     else:
+        if libname in default_settings and libname not in config:
+            config[libname] = default_settings[libname]
+
         try:
             # NOTE: can't use `getstring(...)` due to cyclic dependency
             paths = [os.path.expanduser(config[libname]["dir"])]
@@ -643,7 +672,17 @@ def get_libs_from_config(config: Configuration) -> List[str]:
         if "dir" in sec or "dirs" in sec:
             libs.append(section)
 
-    return libs
+    # NOTE: also look through default settings in case they were registered
+    # in `config.py` using `register_default_settings`.
+    default_settings = get_default_settings()
+    for name, values in default_settings.items():
+        if name in config:
+            continue
+
+        if "dir" in values or "dirs" in values:
+            libs.append(name)
+
+    return sorted(libs)
 
 
 def reset_configuration() -> Configuration:
@@ -656,3 +695,18 @@ def reset_configuration() -> Configuration:
 
     logger.debug("Resetting configuration.")
     return get_configuration()
+
+
+def escape_interp(path: str) -> str:
+    """Escape paths added to the configuration file.
+
+    By default, the :class:`papis.config.Configuration` enables string interpolation
+    in the key values (e.g. using ``key = %(other_key)s-suffix)``). Any paths
+    added to the configuration should then be escaped so that they do not
+    interfere with the interpolation.
+    """
+    import re
+
+    # FIXME: this should be smart enough to not double quote valid interpolation
+    # paths? Would need a regex to skip things like `%\(\w+\)`?
+    return re.sub(r"([^%])%([^%(])", r"\1%%\2", path)

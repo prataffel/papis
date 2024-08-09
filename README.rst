@@ -1,9 +1,29 @@
-Papis
-=====
+.. raw:: html
 
-|ghbadge| |RTD| |CodeQL| |Pypi| |zenodo_badge|
+   <div align="center">
 
-Papis is a powerful and highly extensible CLI document and bibliography manager.
+   <img src="resources/logo.svg" width=300>
+
+   <h1>Papis</h1>
+
+   <a href="https://github.com/papis/papis/actions?query=branch%3Amain+workflow%3ACI">
+       <img src="https://github.com/papis/papis/workflows/CI/badge.svg" alt="GitHub Badge"></a>
+   <a href="http://papis.readthedocs.io/en/latest/?badge=latest">
+       <img src="https://readthedocs.org/projects/papis/badge/?version=latest" alt="Readthedocs"></a>
+   <a href="https://github.com/papis/papis/actions?query=branch%3Amain+workflow%3ACodeQL">
+       <img src="https://github.com/papis/papis/workflows/CodeQL/badge.svg" alt="CodeQL"></a>
+   <a href="https://pypi.org/project/papis/">
+       <img src="https://badge.fury.io/py/papis.svg" alt="PyPI"></a>
+   <a href="https://zenodo.org/badge/latestdoi/82691622">
+       <img src="https://zenodo.org/badge/82691622.svg" alt="Zenodo"></a>
+
+   <br><br>
+
+   Papis is a powerful and highly extensible CLI document and bibliography manager.
+
+   <br><br>
+
+   </div>
 
 |first_glance|
 
@@ -85,12 +105,12 @@ You can then open the indicated address (``http://localhost:8888``) in your brow
 
 |web_app|
 
-All Papis commands come with help messages:
+All ``papis`` commands come with help messages:
 
 .. code:: bash
 
     papis -h      # General help
-    papis add -h  # Help with a specific Papis command
+    papis add -h  # Help with a specific command
 
 Installation & setup
 --------------------
@@ -153,39 +173,34 @@ Papis has grown over the years and there are now a number of projects that exten
      - `Alejandro Gallo <https://alejandrogallo.github.io/>`__
 
    * - `papis-zotero <https://github.com/papis/papis-zotero>`__
-     - `lennonhill <https://github.com/lennonhill>`__
+     - `Alex Fikl <https://github.com/alexfikl>`__
 
    * - `papis-libgen <https://github.com/papis/papis-zotero>`__
      - you?
 
    * - `papis-firefox <https://github.com/papis/papis-firefox>`__
      - `wavefrontshaping <https://github.com/wavefrontshaping>`__
+   * - `papis-qa <https://github.com/isaksamsten/papisqa>`__ (AI for Papis)
+     - `Isak Samsten <https://github.com/isaksamsten>`__
 
 Related software
 ----------------
 
 Papis isn't the only fish in the pond. You might also be interested in:
 
-- `bibman <https://codeberg.org/KMIJPH/bibman>`__ (opensource)
-- `cobib <https://github.com/mrossinek/cobib>`__ (opensource)
-- `jabref <https://www.jabref.org/>`__ (opensource)
+- `bibman <https://codeberg.org/KMIJPH/bibman>`__ (open source)
+- `cobib <https://github.com/mrossinek/cobib>`__ (open source)
+- `jabref <https://www.jabref.org/>`__ (open source)
 - `Mendeley <https://www.mendeley.com/>`__ (proprietary)
-- `pubs <https://github.com/pubs/pubs/>`__ (opensource)
-- `Xapers <https://finestructure.net/xapers/>`__ (opensource)
-- `Zotero <https://www.zotero.org/>`__ (opensource)
+- `pubs <https://github.com/pubs/pubs/>`__ (open source)
+- `Xapers <https://finestructure.net/xapers/>`__ (open source)
+- `Zotero <https://www.zotero.org/>`__ (open source)
 
 
-.. |ghbadge| image:: https://github.com/papis/papis/workflows/CI/badge.svg
-   :target: https://github.com/papis/papis/actions?query=branch%3Amain+workflow%3ACI
-.. |RTD| image:: https://readthedocs.org/projects/papis/badge/?version=latest
-   :target: http://papis.readthedocs.io/en/latest/?badge=latest
-.. |CodeQL| image:: https://github.com/papis/papis/workflows/CodeQL/badge.svg
-   :target: https://github.com/papis/papis/actions?query=branch%3Amain+workflow%3ACodeQL
+Thanks
+------
 
-.. |Pypi| image:: https://badge.fury.io/py/papis.svg
-   :target: https://pypi.org/project/papis/
-.. |zenodo_badge| image:: https://zenodo.org/badge/82691622.svg
-   :target: https://zenodo.org/badge/latestdoi/82691622
+We thank `Irteza Rehman <https://www.irtezarehman.com/>`__ for generously creating our beautiful logo.
 
 .. |first_glance| image:: https://papis.github.io/images/first_glance.gif
 .. |edit| image:: https://papis.github.io/images/edit.gif

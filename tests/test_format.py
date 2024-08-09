@@ -1,16 +1,13 @@
 import pytest
 
 import papis.format
-import papis.config
 import papis.document
 
-from tests.testlib import TemporaryConfiguration
+from papis.testing import TemporaryConfiguration
 
 
-def test_python_formater(tmp_config: TemporaryConfiguration, monkeypatch) -> None:
-    papis.config.set("formater", "python")
-    monkeypatch.setattr(papis.format, "FORMATER", None)
-
+@pytest.mark.config_setup(settings={"formatter": "python"})
+def test_python_formatter(tmp_config: TemporaryConfiguration) -> None:
     document = papis.document.from_data({"author": "Fulano", "title": "A New Hope"})
     assert (
         papis.format.format("{doc[author]}: {doc[title]}", document)
@@ -31,11 +28,15 @@ def test_python_formater(tmp_config: TemporaryConfiguration, monkeypatch) -> Non
             data)
         == ": The Phantom Menace ()")
 
+    assert papis.format.format("{doc[title]!y}", data) == "the-phantom-menace"
+    assert papis.format.format("{doc[title]:1.3S}", data) == "Phantom Menace"
+    assert papis.format.format("{doc[title]:.2S}", data) == "The Phantom"
+    assert papis.format.format("{doc[title]:2S}", data) == "The Phantom"
 
-def test_jinja_formater(tmp_config: TemporaryConfiguration, monkeypatch) -> None:
+
+@pytest.mark.config_setup(settings={"formatter": "jinja2"})
+def test_jinja_formatter(tmp_config: TemporaryConfiguration) -> None:
     pytest.importorskip("jinja2")
-    papis.config.set("formater", "jinja2")
-    monkeypatch.setattr(papis.format, "FORMATER", None)
 
     document = papis.document.from_data({"author": "Fulano", "title": "A New Hope"})
     assert (

@@ -1,5 +1,261 @@
-VERSION v0.13
-=============
+VERSION NEXT
+============
+
+## Dependency changes
+
+* Minimum required Python version bumped to 3.8
+  ([#552](https://github.com/papis/papis/pull/552)).
+* Moved to `pyproject.toml` and removed `setup.py` completely. We use
+  [hatchling](https://github.com/pypa/hatch/tree/master/backend) as the build
+  backend.
+* Removed [arxiv2bib](https://github.com/nathangrigg/arxiv2bib) in favor of
+  [arxiv.py](https://github.com/lukasschwab/arxiv.py).
+* Removed [tqdm](https://github.com/tqdm/tqdm) dependency (using a progress bar
+  from `prompt_toolkit` instead).
+* Made `chardet` an optional dependency. This is an optional dependency of
+  `bs4`, `requests` and `feedparser` and should be installed if possible.
+* Added [markdownify](https://github.com/matthewwithanm/python-markdownify) as
+  an optional dependency for the Zenodo downloader.
+* Added [platformdirs](https://github.com/platformdirs/platformdirs) dependency
+  for platform-specific config locations.
+
+## Features
+
+### New: Improved Windows support
+
+The support for Windows has been significantly improved in this release. On top of
+a slew of fixes, there is also a build that creates a Windows executable and
+installer using [PyInstaller](https://pyinstaller.org/en/stable).
+
+These can currently be found only as artifacts under the
+[Windows release workflow](https://github.com/papis/papis/actions/workflows/windows.yml).
+We do urge anyone knowledgeable and interested to try them out and report any
+issues, so that they can be improved before they make it into regular releases.
+
+Huge thanks to @kiike for all the work on this!
+
+### New: Add `cache` command ([#603](https://github.com/papis/papis/pull/603))
+
+The `cache` command has been added in order to provide more control over the
+papis cache. Accordingly, the equivalent commands `papis --cc` and
+`papis --clear-cache` have been removed and can be replaced by the equivalent
+```sh
+papis cache clear
+```
+
+The command can now also update only specific documents using
+```sh
+papis cache update QUERY
+```
+
+You can learn more about the cache command in the documentation.
+
+### New: EPUB support for the web application
+
+Now you can read EPUB files from the comfort of the web application. The
+workflow is similar to the existing one for PDFs and it uses the
+[epubjs-reader](https://github.com/futurepress/epubjs-reader) library.
+
+### New: Exporter for the Typst Hayagriva format ([#559](https://github.com/papis/papis/pull/559))
+
+[Typst](https://github.com/typst/typst) is a new typesetting system with some
+very cool features and a more modern outlook compared to LaTeX. While it
+supports BibTeX, it also has its own bibliography format called Hayagriva
+(a YAML file). Papis can now export directly to this format using
+```
+papis export --format typst QUERY
+```
+
+### New: Add `init` command ([#620](https://github.com/papis/papis/pull/620))
+
+A new `papis init` command was added to initialize a new configuration file
+and add additional libraries. The command is mainly interactive and sets some
+standard default options. It can be used as
+```sh
+papis init /path/to/my/library
+```
+
+**Warning**: We currently use the standard Python `configparser` which does not
+preserve comments. This means that updating a configuration file using `papis init`
+will remove any comments and possibly reorder some options.
+
+### New: Add `tag` command ([#648](https://github.com/papis/papis/pull/648))
+
+A new `papis tag` command was added to handle adding and removing tags
+(or keywords) for a document. For example, to add a few tags to a set of
+documents
+```
+papis tag --add cool-project --add from-steve --all QUERY
+```
+or change a tag for a mislabeled document
+```
+papis tag --remove biology --add neuroscience QUERY
+```
+
+For more examples see the documentation.
+
+**Warning**: The `tag` command expects that the tags are a list, not a single
+string with a separator. You can quickly transform your tags into a list using
+`papis doctor` e.g.
+```sh
+papis \
+    --set doctor-key-type-check-keys '["tags:list"]' \
+    --set doctor-key-type-check-separator ' ' \
+    doctor --fix --all --explain -t key-type QUERY
+```
+where you may need to change the separator to match your choice.
+
+### Major: Expand `update` command ([#681](https://github.com/papis/papis/pull/681))
+
+The update command got some major improvements this release. It now allows much
+more fine-grained modifications of a document without requiring the user to open
+a full editor. For example, it can now
+
+* Append to a key using
+    ```sh
+    papis update --append title ' (Volume 2)' <QUERY>
+    ```
+
+* Remove items from a list using
+    ```sh
+    papis update --remove tags 'physics' <QUERY>
+    ```
+
+* Remove a key completely from the document
+    ```sh
+    papis update --drop eprinttype <QUERY>
+    ```
+
+For more examples see the documentation.
+
+### Major: Expand `doctor` command
+
+The `papis doctor` command has seen many additions and modifications in this
+release. First, the `papis add` and `papis update` commands can now automatically
+run selected fixed with the `--auto-doctor` flag
+([#598](https://github.com/papis/papis/pull/598)). This makes it less likely for
+ill-formatted documents to make it into the library in the first place!
+
+Many checks for BibTeX have been added: `biblatex-type-alias`, `biblatex-key-alias`
+and `biblatex-required-keys` ([#663](https://github.com/papis/papis/pull/663)).
+These checks ensure that the document has all the keys required by the BibLaTeX
+engine to output well-formatted entries for each document type.
+
+Other smaller noteworthy changes:
+
+* `key-type`: added fixers that automatically convert some types
+  ([#652](https://github.com/papis/papis/pull/652)
+   [#656](https://github.com/papis/papis/pull/656)).
+* `keys-exist`: added fixers for `author` and `author_list`
+  ([#655](https://github.com/papis/papis/pull/655))
+* `duplicated-values`: new check for duplicate values inside lists
+  ([#695](https://github.com/papis/papis/pull/695))
+* `bibtex-type`: add fixer to automatically convert known document types
+  ([#732](https://github.com/papis/papis/pull/732))
+
+### Minor: Plugin helpers ([#680](https://github.com/papis/papis/pull/680) and [#752](https://github.com/papis/papis/pull/752))
+
+A new module `papis.testing` was introduced to help with testing Papis-related
+functionality. They allow easy setup of temporary configurations and temporary
+libraries for testing purposes.
+
+A new module `papis.sphinx_ext` was introduced to help with Papis-related
+documentation. This allows defining configuration options in the Sphinx documentation
+that describe their types and default values in sync with the ones used in the
+code.
+
+These have mostly been promoted to separate module so that plugins can easily
+make use of the same infrastructure.
+
+### Minor: Configuration file location ([#745](https://github.com/papis/papis/pull/745))
+
+The location of the configuration file has been standardized using
+[platformdirs](https://github.com/platformdirs/platformdirs). On Linux-y systems,
+this should not make any difference, since Papis has been using the XDG
+environment variables to get the proper location.
+
+However, on other systems, especially Windows and macOS, the **location of the
+configuration files will change**. Papis has implemented a simple migration, so
+this should be fairly automatic.
+
+## Other noteworthy features
+
+* Add more BibTeX key conversions
+  ([#561](https://github.com/papis/papis/pull/561)
+   [#562](https://github.com/papis/papis/pull/562)).
+* Allow setting refs in `papis update`
+  ([#593](https://github.com/papis/papis/pull/539)).
+* Add proper extensions to temporary downloaded files to better differentiate
+  ([#548](https://github.com/papis/papis/pull/548)).
+* Updated `Dockerfile` and added `release.Dockerfile`
+  ([#597](https://github.com/papis/papis/pull/597)).
+* Allow `papis.format.format` to set default values and not leak exceptions
+  into document fields.
+  ([#596](https://github.com/papis/papis/pull/596)).
+* Added a `flake.nix` script for easier use with the nix package manager
+  ([#600](https://github.com/papis/papis/pull/600)).
+* Updated default `opentool` on Windows
+  ([#569](https://github.com/papis/papis/pull/569)).
+* `papis` command: when invoking `papis` without a subcommand the help message
+  is printed. This should avoid some confusions for new users
+  ([#603](https://github.com/papis/papis/pull/603)).
+* Allow multiple `--doc-folder` arguments to commands that support it
+  ([#635](https://github.com/papis/papis/pull/635)).
+* Improve ScienceDirect abstract extraction
+  ([#637](https://github.com/papis/papis/pull/637))
+* Better support for `--batch` in `papis add`
+  ([#630](https://github.com/papis/papis/pull/630)).
+* Add `--[no-]download-files` flags to `papis add`
+  ([#641](https://github.com/papis/papis/pull/641)).
+* Add a downloader for ACL Anthology documents
+  ([#575](https://github.com/papis/papis/pull/575))
+* Expand `papis list` to list all plugins and other extensions
+  ([#716](https://github.com/papis/papis/pull/716))
+* Add `biblatex-software` types to our BibTeX module
+  ([#719](https://github.com/papis/papis/pull/719))
+* Sort tags alphabetically in `papis serve`
+  ([#730](https://github.com/papis/papis/pull/730))
+* Add a `--move` flag to `papis add`
+  ([#740](https://github.com/papis/papis/pull/740))
+* Enhance `python` formatter with some additional conversions
+  ([#709](https://github.com/papis/papis/pull/709))
+* Fix the `these.fr` downloader
+  ([#729](https://github.com/papis/papis/pull/792)).
+* Add a Zenodo downloader
+  ([#770](https://github.com/papis/papis/pull/770)). This uses some of the
+  fields from [biblatex-software](https://ctan.org/pkg/biblatex-software?lang=en).
+* Make file and folder cleanup more configurable
+  ([#803](https://github.com/papis/papis/pull/803)).
+* Expand the `rename` command
+  ([#810](https://github.com/papis/papis/pull/810)).
+* Allow configuration for marked lines margins and make marked and unmarked
+  margins span the whole document entry.
+  ([#820](https://github.com/papis/papis/pull/820))
+
+## Bug fixes
+
+* Fixed Papis to BibTeX key conversions
+  ([#555](https://github.com/papis/papis/pull/555)).
+* Fix encoding of `info.yaml` files on Windows
+  ([#571](https://github.com/papis/papis/pull/571)).
+* Fixed quoting in some calls to external commands
+  ([#580](https://github.com/papis/papis/pull/580)).
+* Warn and specify how external scripts are loaded.
+  ([#594](https://github.com/papis/papis/pull/594)).
+* Fix manpage generation from Sphinx
+  ([#609](https://github.com/papis/papis/pull/609)).
+* Ensure that user provided data in `papis add` using `--set key value` is not
+  overwritten by importers
+  ([#616](https://github.com/papis/papis/pull/616)).
+* Fix some boolean flags working in an unexpected manner
+  ([#636](https://github.com/papis/papis/pull/636)).
+* Fix opening multiple files in the default picker
+  ([#693](https://github.com/papis/papis/pull/693))
+* Do not escape verbatim BibTeX fields like `url`
+  ([#739](https://github.com/papis/papis/pull/739))
+
+VERSION v0.13 (May 7, 2023)
+===========================
 
 ## Features
 
@@ -78,7 +334,7 @@ And many other general interface and robustness improvements.
 * Better notes handling in
   `papis update` ([#404](https://github.com/papis/papis/pull/404)),
   `papis edit` ([#391](https://github.com/papis/papis/pull/391)) and
-  the papis picker ([#319](https://github.com/papis/papis/pull/319)).
+  the Papis picker ([#319](https://github.com/papis/papis/pull/319)).
 * Improvements to BiBTeX export (
   [#412](https://github.com/papis/papis/pull/412)
   [#444](https://github.com/papis/papis/pull/444)
@@ -112,8 +368,8 @@ And many other general interface and robustness improvements.
 * Fix crash on trying to add a duplicate document ([#510](https://github.com/papis/papis/pull/510)).
 * Fix many typos ([#540](https://github.com/papis/papis/pull/540)).
 
-VERSION v0.12
-=============
+VERSION v0.12 (May 23, 2022)
+============================
 
 Many issues were resolved and new (and old) contributors
 made the following changes possible.
@@ -168,8 +424,8 @@ Check out the
 ## Community
 - usage of github discussions and #papis channel on libera.
 
-VERSION v0.11
-=============
+VERSION v0.11 (October 17, 2020)
+================================
 
 ## `papis explore`
 - Add `add` command to simply add documents retrieved.
@@ -207,8 +463,8 @@ VERSION v0.11
   using a doi.
 
 
-VERSION v0.10
-=============
+VERSION v0.10 (May 2, 2020)
+===========================
 
 - Fix several bugs.
 - Typecheck the whole codebase
@@ -242,8 +498,8 @@ VERSION v0.10
 
 
 
-VERSION v0.9
-============
+VERSION v0.9 (October 21, 2019)
+===============================
 
 ## Plugin architecture ##
 
@@ -275,7 +531,7 @@ papis module `papis.git`.
 - The flag `--commit` now has the name `--git`.
 - The flag `--dir` now has the more descriptive name `--subfolder`.
 - The flag `--no-document` has been finally removed.
-- The most notable update is that papis is now able to guess a `doi`
+- The most notable update is that the `papis` commands are now able to guess a `doi`
   or `arxiv` id from a pdf that is being added, so the following could work
 
   ```
@@ -296,7 +552,7 @@ papis module `papis.git`.
 ## `papis export` ##
 
 - The configuration settings `export-text-format` has been removed along with
-  the export --text command. papis now support plugins so you should write your
+  the export --text command. Papis now support plugins so you should write your
   own instead.
 - The flags --bibtex/--json/--yaml of the `export` command have been replaced
   by `export --format=bibtex/json/yaml`
@@ -352,14 +608,14 @@ papis module `papis.git`.
   been added. Now you will be able to retrieve information
   from many more websites by by virtue of the metadata of html websites.
 
-VERSION v0.8.1
-==============
+VERSION v0.8.1 (February 27, 2019)
+==================================
 
 - Change default colors for `header_formater`.
 - Update `prompt_toolkit` version to `2.0.5`.
 
-VERSION v0.8
-============
+VERSION v0.8 (February 26, 2019)
+================================
 
 One of the main developments for version `0.8` is to make `papis` less
 dependent on `PyPi`, for which some important dependencies have been
@@ -386,7 +642,7 @@ added into the main source and is installed with it.
 - Remove `xeditor` config parameter
 - Add external picker in api
 
-- Erase all guis from papis main repository, they should be used in external
+- Erase all guis from Papis main repository, they should be used in external
   scripts or projects, [docs](https://papis.readthedocs.io/en/latest/gui.html).
 
 - Fix downloader testing framework.

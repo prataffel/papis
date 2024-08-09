@@ -9,11 +9,12 @@ Command-line Interface
 """
 
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 
 import papis.config
+import papis.git
 import papis.utils
 import papis.database
 import papis.document
@@ -34,8 +35,11 @@ def run(document: papis.document.Document,
     if not folder:
         raise DocumentFolderNotFound(papis.document.describe(document))
 
-    papis.utils.run((["git"] if git else []) + ["mv", folder, new_folder_path],
-                    cwd=folder)
+    if git:
+        papis.git.mv(folder, new_folder_path)
+    else:
+        import shutil
+        shutil.move(folder, new_folder_path)
 
     db = papis.database.get()
     db.delete(document)
@@ -58,7 +62,7 @@ def run(document: papis.document.Document,
 def cli(query: str,
         git: bool,
         sort_field: Optional[str],
-        doc_folder: str,
+        doc_folder: Tuple[str, ...],
         sort_reverse: bool) -> None:
     """Move a document into some other path"""
     # Leave this imports here for performance

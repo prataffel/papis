@@ -111,6 +111,12 @@ def parse_meta_headers(soup: "bs4.BeautifulSoup") -> Dict[str, Any]:
         data["author_list"] = author_list
         data["author"] = papis.document.author_list_to_author(data)
 
+    from papis.bibtex import bibtex_type_converter
+
+    bib_type = data.get("type")
+    if bib_type in bibtex_type_converter:
+        data["type"] = bibtex_type_converter[bib_type]
+
     return data
 
 
@@ -137,7 +143,7 @@ def parse_meta_authors(soup: "bs4.BeautifulSoup") -> List[Dict[str, Any]]:
     # convert to papis author format
     author_list: List[Dict[str, Any]] = []
     for author, aff in authors_and_affs:
-        fullname, = papis.document.split_authors_name([author.get("content")])
+        fullname = papis.document.split_author_name(author.get("content"))
         affiliation = [{"name": aff.get("content")}] if aff else []
 
         author_list.append({

@@ -1,6 +1,6 @@
 """
 This command edits the :ref:`info.yaml file <info-file>` of the documents.
-The editor used is defined by the :ref:`config-settings-editor` configuration
+The editor used is defined by the :confval:`editor` configuration
 setting.
 
 Command-line Interface
@@ -9,7 +9,7 @@ Command-line Interface
 .. click:: papis.commands.edit:cli
     :prog: papis edit
 """
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 
@@ -49,8 +49,8 @@ def run(document: papis.document.Document,
         logger.debug("No changes made to the document.")
         return
 
+    papis.hooks.run("on_edit_done", document)
     papis.database.get().update(document)
-    papis.hooks.run("on_edit_done")
     if git:
         papis.git.add_and_commit_resource(
             str(document.get_main_folder()),
@@ -74,18 +74,15 @@ def edit_notes(document: papis.document.Document,
                                                msg)
 
 
-@click.command("edit")                  # type: ignore[arg-type]
+@click.command("edit")
 @click.help_option("-h", "--help")
 @papis.cli.query_argument()
 @papis.cli.doc_folder_option()
 @papis.cli.git_option(help="Add changes made to the info file")
 @papis.cli.sort_option()
-@click.option(
-    "-n",
-    "--notes",
-    help="Edit notes associated to the document",
-    default=False,
-    is_flag=True)
+@papis.cli.bool_flag(
+    "-n", "--notes",
+    help="Edit notes associated to the document")
 @papis.cli.all_option()
 @click.option(
     "-e",
@@ -93,7 +90,7 @@ def edit_notes(document: papis.document.Document,
     help="Editor to be used",
     default=None)
 def cli(query: str,
-        doc_folder: str,
+        doc_folder: Tuple[str, ...],
         git: bool,
         notes: bool,
         _all: bool,
@@ -111,7 +108,7 @@ def cli(query: str,
         return
 
     if editor is not None:
-        papis.config.set("editor", editor)
+        papis.config.set("editor", papis.config.escape_interp(editor))
 
     for document in documents:
         if notes:

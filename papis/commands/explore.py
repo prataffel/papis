@@ -1,6 +1,6 @@
 """
 This command is mainly used to explore different databases and gather data
-for a project before adding it to the papis libraries.
+for a project before adding it to the Papis libraries.
 
 Examples
 ^^^^^^^^
@@ -31,7 +31,7 @@ concatenate the commands ``crossref`` and ``export --format bibtex`` as such
 
 .. code:: sh
 
-    papis explore crossref -a 'Schrodinger' export --format bibtex lib.bib
+    papis explore crossref -a 'Schrodinger' export --format bibtex --out 'lib.bib'
 
 This will store everything that you got from Crossref in the ``lib.bib`` file.
 However, ``explore`` is much more flexible than that. You can also pick just
@@ -41,7 +41,7 @@ take care of it
 
 .. code:: sh
 
-    papis explore crossref -a 'Schrodinger' pick export --format bibtex lib.bib
+    papis explore crossref -a 'Schrodinger' pick export --format bibtex --out 'lib.bib'
 
 Notice how the ``pick`` command is situated before the ``export``.
 More generally you could write something like
@@ -49,18 +49,18 @@ More generally you could write something like
 .. code:: sh
 
     papis explore \\
-        crossref -a Schroedinger \\
-        crossref -a Einstein \\
+        crossref -a 'Schroedinger' \\
+        crossref -a 'Einstein' \\
         arxiv -a 'Felix Hummel' \\
-        export --format yaml docs.yaml \\
+        export --format yaml --out 'docs.yaml' \\
         pick  \\
-        export --format bibtex specially-picked-document.bib
+        export --format bibtex --out 'special-picked-documents.bib'
 
 The upper command will look in Crossref for documents authored by Schrodinger,
 then also by Einstein, and will look on the arXiv for papers authored by Felix
 Hummel. At the end, all these documents will be stored in the ``docs.yaml`` file.
 After that we pick one document from them and store the information in
-the file ``specially-picked-document.bib``, and we could go on and on.
+the file ``special-picked-documents.bib``, and we could go on and on.
 
 If you want to follow-up on these documents and get them again to pick one,
 you could use the ``yaml`` command to read in document information from a YAML
@@ -69,17 +69,18 @@ file, e.g. the previously created ``docs.yaml``,
 .. code:: sh
 
     papis explore \\
-        yaml docs.yaml \\
+        yaml 'docs.yaml' \\
         pick \\
         cmd 'papis scihub {doc[doi]}' \\
         cmd 'firefox {doc[url]}'
 
 In this last example, we read the documents from ``docs.yaml`` and pick a
-document, which we then feed into the ``explore cmd`` command, that accepts
-a papis formatting string to issue a general shell command.  In this case, the
-picked document gets fed into the ``papis scihub`` command which tries to
-download the document using ``scihub``. Also this very document is opened by
-Firefox (in case the document does have a ``url``).
+document, which we then feed into the ``explore cmd`` command.  This command
+accepts a string to issue a general shell command and allows formatting with the
+Papis template syntax.  In this case, the picked document gets fed into the
+``papis scihub`` command which tries to download the document using ``scihub``.
+Also this very document is opened by Firefox (in case the document does have a
+``url``).
 
 Command-line Interface
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -89,7 +90,7 @@ Command-line Interface
     :nested: full
 """
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Tuple
 import shlex
 
 import click
@@ -130,14 +131,25 @@ def get_explorer_mgr() -> "ExtensionManager":
     return papis.plugin.get_extension_manager(EXPLORER_EXTENSION_NAME)
 
 
-@click.command("lib")                   # type: ignore[arg-type]
+def get_explorer_by_name(name: str) -> Optional[click.Command]:
+    try:
+        mgr = get_explorer_mgr()
+        plugin: click.Command = mgr[name].plugin
+        return plugin
+    except KeyError:
+        return None
+
+
+@click.command("lib")
 @click.pass_context
 @click.help_option("--help", "-h")
 @papis.cli.query_argument()
 @papis.cli.doc_folder_option()
 @click.option("--library", "-l", default=None, help="Papis library to look")
-def lib(ctx: click.Context, query: str,
-        doc_folder: str, library: Optional[str]) -> None:
+def lib(ctx: click.Context,
+        query: str,
+        doc_folder: Tuple[str, ...],
+        library: Optional[str]) -> None:
     """
     Query for documents in your library.
 
@@ -146,11 +158,11 @@ def lib(ctx: click.Context, query: str,
 
     .. code:: sh
 
-        papis lib -l books einstein pick
+        papis explore lib -l books 'einstein' pick
     """
 
     if doc_folder:
-        ctx.obj["documents"] += [papis.document.from_folder(doc_folder)]
+        ctx.obj["documents"] += [papis.document.from_folder(d) for d in doc_folder]
     db = papis.database.get(library_name=library)
     docs = db.query(query)
     logger.info("Found %d documents.", len(docs))
@@ -159,7 +171,7 @@ def lib(ctx: click.Context, query: str,
     assert isinstance(ctx.obj["documents"], list)
 
 
-@click.command("pick")                  # type: ignore[arg-type]
+@click.command("pick")
 @click.pass_context
 @click.help_option("--help", "-h")
 @click.option("--number", "-n",
@@ -193,13 +205,12 @@ def pick(ctx: click.Context, number: Optional[int]) -> None:
 @papis.cli.query_argument()
 @papis.cli.doc_folder_option()
 @click.help_option("--help", "-h")
-@click.option("-b",
-              "--cited-by",
-              default=False,
-              is_flag=True,
-              help="Use the cited-by citations")
+@papis.cli.bool_flag("-b", "--cited-by",
+                     help="Use the cited-by citations")
 @papis.cli.all_option()
-def citations(ctx: click.Context, query: str, doc_folder: str,
+def citations(ctx: click.Context,
+              query: str,
+              doc_folder: Tuple[str, ...],
               cited_by: bool,
               _all: bool) -> None:
     """
@@ -210,11 +221,11 @@ def citations(ctx: click.Context, query: str, doc_folder: str,
 
     .. code:: sh
 
-        papis explore citations 'einstein' export --format yaml einstein.yaml
-
+        papis explore citations 'einstein' export --format yaml --out 'einstein.yaml'
     """
+
     if doc_folder is not None:
-        documents = [papis.document.from_folder(doc_folder)]
+        documents = [papis.document.from_folder(d) for d in doc_folder]
     else:
         documents = papis.api.get_documents_in_lib(papis.config.get_lib_name(),
                                                    search=query)
@@ -254,7 +265,7 @@ def add(ctx: click.Context) -> None:
         papis.commands.add.run([], d)
 
 
-@click.command("cmd")               # type: ignore[arg-type]
+@click.command("cmd")
 @click.pass_context
 @click.help_option("--help", "-h")
 @click.argument("command", type=str)
@@ -279,7 +290,7 @@ def cmd(ctx: click.Context, command: str) -> None:
         papis.utils.run(shlex.split(fcommand))
 
 
-@click.group("explore",             # type: ignore[arg-type]
+@click.group("explore",
              cls=papis.commands.AliasedGroup,
              invoke_without_command=False, chain=True)
 @click.help_option("--help", "-h")

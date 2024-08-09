@@ -2,11 +2,8 @@ import tempfile
 import pickle
 import os
 
-import papis.config
-import papis.format
 import papis.document
-
-from tests.testlib import TemporaryConfiguration
+from papis.testing import TemporaryConfiguration
 
 DOCUMENT_RESOURCES = os.path.join(os.path.dirname(__file__), "resources")
 
@@ -54,7 +51,7 @@ def test_main_features() -> None:
 
     assert doc.has("title")
     assert doc["title"] == "Hello World"
-    assert set(doc.keys()) == set(["title", "author"])
+    assert set(doc.keys()) == {"title", "author"}
     assert not doc.has("doi")
 
     doc["doi"] = "123123.123123"
@@ -63,7 +60,7 @@ def test_main_features() -> None:
     del doc["doi"]
     assert not doc.has("doi")
     assert doc["doi"] == ""
-    assert set(doc.keys()) == set(["title", "author"])
+    assert set(doc.keys()) == {"title", "author"}
 
     doc.set_folder(os.path.join(DOCUMENT_RESOURCES, "document"))
     assert doc.get_main_folder_name()
@@ -78,6 +75,7 @@ def test_main_features() -> None:
 
 
 def test_to_bibtex(tmp_config: TemporaryConfiguration) -> None:
+    import papis.config
     import papis.bibtex
 
     papis.config.set("bibtex-journal-key", "journal_abbrev")
@@ -91,7 +89,7 @@ def test_to_bibtex(tmp_config: TemporaryConfiguration) -> None:
     doc.set_folder("path/to/superfolder")
 
     assert papis.bibtex.to_bibtex(doc) == (
-        "@book{HelloFernan3200bce,\n"
+        "@book{Hello_Fernan_3200BCE,\n"
         "  author = {Fernandez, Gilgamesh},\n"
         "  journal = {jcp},\n"
         "  title = {Hello},\n"
@@ -99,7 +97,7 @@ def test_to_bibtex(tmp_config: TemporaryConfiguration) -> None:
         "}")
     doc["journal_abbrev"] = "j"
     assert papis.bibtex.to_bibtex(doc) == (
-        "@book{HelloFernan3200bce,\n"
+        "@book{Hello_Fernan_3200BCE,\n"
         "  author = {Fernandez, Gilgamesh},\n"
         "  journal = {j},\n"
         "  title = {Hello},\n"
@@ -138,7 +136,7 @@ def test_pickle() -> None:
 
 def test_sort(tmp_config: TemporaryConfiguration) -> None:
     docs = [
-        papis.document.from_data(dict(title="Hello world", year=1990)),
+        papis.document.from_data({"title": "Hello world", "year": 1990}),
         papis.document.from_data({"author": "Turing", "year": "1932"}),
     ]
     sdocs = papis.document.sort(docs, key="year", reverse=False)
@@ -155,10 +153,85 @@ def test_dump() -> None:
 
     result = papis.document.dump(doc)
     expected_result = (
-        "author:            Turing, Alan\n"
-        "some-longer-key:   value\n"
-        "title:             Computing machinery and intelligence\n"
-        "year:              1950"
+        "author: Turing, Alan\n"
+        "some-longer-key: value\n"
+        "title: Computing machinery and intelligence\n"
+        "year: 1950"
         )
 
     assert result == expected_result
+
+
+def test_author_separator_heuristics() -> None:
+    import re
+    from papis.document import guess_authors_separator, split_authors_name
+
+    def is_comma_and_re(sep):
+        assert sep
+        assert re.match(sep, ", and")
+        assert re.match(sep, ",and")
+        assert re.match(sep, ",")
+
+    s = "Sanger, F. and Nicklen, S. and Coulson, A. R."
+    expected = [{"family": "Sanger", "given": "F."},
+                {"family": "Nicklen", "given": "S."},
+                {"family": "Coulson", "given": "A. R."}]
+    assert guess_authors_separator(s) == "and"
+    assert split_authors_name([s]) == expected
+
+    expected = [{"family": "Sanger", "given": "Fabian"},
+                {"family": "Nicklen", "given": "Steven"},
+                {"family": "Coulson", "given": "Alexander R."}]
+
+    s = "Fabian Sanger and Steven Nicklen and Alexander R. Coulson"
+    assert guess_authors_separator(s) == "and"
+    assert split_authors_name([s]) == expected
+
+    s = "Fabian Sanger, Steven Nicklen, Alexander R. Coulson"
+    assert guess_authors_separator(s) == ","
+    assert split_authors_name([s]) == expected
+
+    s = "Fabian Sanger, and Steven Nicklen, and Alexander R. Coulson"
+    sep = guess_authors_separator(s)
+    is_comma_and_re(sep)
+    assert split_authors_name([s]) == expected
+
+    s = "Fabian Sanger, Steven Nicklen, and Alexander R. Coulson"
+    sep = guess_authors_separator(s)
+    is_comma_and_re(sep)
+    assert split_authors_name([s]) == expected
+
+    expected = [{"family": "Doe", "given": "John"},
+                {"family": "Dorian", "given": "Jane"},
+                {"family": "Unknown", "given": "James T."}]
+
+    s = "John Doe, Jane Dorian, and James T. Unknown "
+    sep = guess_authors_separator(s)
+    is_comma_and_re(sep)
+    assert split_authors_name([s]) == expected
+
+    expected = [{"family": "Duck", "given": "Dagobert"},
+                {"family": "von Beethoven", "given": "Ludwig"},
+                {"family": "Ford Jr.", "given": "Henry"}]
+
+    s = "Dagobert Duck and von Beethoven, Ludwig and Ford, Jr., Henry"
+    assert guess_authors_separator(s) == "and"
+    assert split_authors_name([s]) == expected
+
+    expected = [{"family": "Turing", "given": "A. M."}]
+
+    s = "Turing, A. M."
+    assert guess_authors_separator(s) == "and"
+    assert split_authors_name([s]) == expected
+
+    expected = [{"family": "Liddel Hart", "given": "Basil"}]
+
+    s = "Liddel Hart, Basil"
+    assert guess_authors_separator(s) == "and"
+    assert split_authors_name([s]) == expected
+
+    # NOTE: we cannot usefully distinguish between these cases:
+    #   s = "Last Last, First"        # one author
+    #   s = "Last, First First"       # one author
+    #   s = "Last Last, First First"  # one author
+    #   s = "First Last, First Last"  # two authors

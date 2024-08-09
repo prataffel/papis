@@ -25,8 +25,8 @@ default "default-library" with:
     papis config --default default-library
 
 Settings from a specific section in the configuration file can also be
-accessed. To take an example, the `Bibtex`_ command's settings can be
-accessed with:
+accessed. To take an example, the :ref:`papis bibtex <command-bibtex>` command's
+settings can be accessed with:
 
 .. code::
 
@@ -75,6 +75,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 import colorama
 
+import papis.cli
 import papis.config
 import papis.commands
 import papis.logging
@@ -105,7 +106,7 @@ def parse_option(
         section = parts[0] if parts[0] else None
         key = parts[1]
     else:
-        raise ValueError("Unsupported option format: '{}'".format(option))
+        raise ValueError(f"Unsupported option format: '{option}'")
 
     return section, key
 
@@ -207,30 +208,28 @@ def run(
     return result
 
 
-@click.command("config")                # type: ignore[arg-type]
+@click.command("config")
 @click.help_option("--help", "-h")
 @click.argument("options", nargs=-1)
 @click.option(
     "-s", "--section",
     help="select a default section for the options",
     default=None)
-@click.option(
+@papis.cli.bool_flag(
     "-d", "--default",
     help="List default configuration setting values, instead of those in the "
-         "configuration file",
-    default=False, is_flag=True)
-@click.option(
-    "--json", "json_",
-    help="Print settings in a JSON format",
-    default=False, is_flag=True)
+         "configuration file")
+@papis.cli.bool_flag(
+    "--json", "print_json",
+    help="Print settings in a JSON format")
 def cli(options: List[str],
         section: Optional[str],
-        json_: bool,
-        default: bool) -> None:
+        default: bool,
+        print_json: bool) -> None:
     """Print configuration values"""
     if len(options) == 1:
         # NOTE: a single option is printed directly for a bit of backwards
-        # compatiblity and easier use in shell scripts, so remove with care!
+        # compatibility and easier use in shell scripts, so remove with care!
         _, value = _get_option_safe(options[0], section, default=default)
         if value is not None:
             click.echo(value)
@@ -240,28 +239,29 @@ def cli(options: List[str],
     if not result:
         return
 
-    if json_:
+    if print_json:
         import json
         click.echo(json.dumps(result, indent=2))
-    else:
-        lines = []
-        if len(options) == 0 and section is None:
-            # NOTE: no inputs prints all of the sections
-            is_first = True
-            for section, settings in result.items():
-                if not is_first:
-                    lines.append("")
+        return
 
-                is_first = False
-                lines.append("[{}]".format(section))
+    lines = []
+    if len(options) == 0 and section is None:
+        # NOTE: no inputs prints all of the sections
+        is_first = True
+        for section, settings in result.items():
+            if not is_first:
+                lines.append("")
 
-                for key, value in settings.items():
-                    lines.append(format_option(key, value))
-        else:
-            if section is not None and all("." not in o for o in options):
-                lines.append("[{}]".format(section))
+            is_first = False
+            lines.append(f"[{section}]")
 
-            for key, value in result.items():
+            for key, value in settings.items():
                 lines.append(format_option(key, value))
+    else:
+        if section is not None and all("." not in o for o in options):
+            lines.append(f"[{section}]")
 
-        click.echo("\n".join(lines))
+        for key, value in result.items():
+            lines.append(format_option(key, value))
+
+    click.echo("\n".join(lines))

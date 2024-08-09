@@ -1,4 +1,5 @@
 import re
+import os
 import tempfile
 from typing import List, Optional, Any, Sequence, Type, Dict, Union, TYPE_CHECKING
 
@@ -14,9 +15,7 @@ if TYPE_CHECKING:
 
 logger = papis.logging.get_logger(__name__)
 
-
-def _extension_name() -> str:
-    return "papis.downloader"
+DOWNLOADERS_EXTENSION_NAME = "papis.downloader"
 
 
 class Importer(papis.importer.Importer):
@@ -63,7 +62,7 @@ class Downloader(papis.importer.Importer):
     .. attribute:: priority
 
         A priority given to the downloader. This is used when trying to
-        automatically determine a prefered downloader for a given URL.
+        automatically determine a preferred downloader for a given URL.
 
     .. attribute:: session
 
@@ -90,7 +89,7 @@ class Downloader(papis.importer.Importer):
             cookies = {}
 
         super().__init__(uri=uri, name=name, ctx=ctx)
-        self.logger = papis.logging.get_logger("papis.downloader.{}".format(self.name))
+        self.logger = papis.logging.get_logger(f"papis.downloader.{self.name}")
 
         self.expected_document_extensions = expected_document_extension
         self.priority = priority
@@ -125,8 +124,8 @@ class Downloader(papis.importer.Importer):
             *None* otherwise.
         """
         raise NotImplementedError(
-            "Matching URI not implemented for '{}.{}'"
-            .format(cls.__module__, cls.__name__))
+            f"Matching URI not implemented for '{cls.__module__}.{cls.__name__}'"
+            )
 
     @papis.importer.cache
     def fetch(self) -> None:
@@ -210,7 +209,7 @@ class Downloader(papis.importer.Importer):
             if doc_rawdata and self.check_document_format():
                 extension = self.get_document_extension()
                 if extension:
-                    extension = ".{}".format(extension)
+                    extension = f".{extension}"
 
                 with tempfile.NamedTemporaryFile(
                         mode="wb+", delete=False,
@@ -240,7 +239,7 @@ class Downloader(papis.importer.Importer):
         return self._soup
 
     def __str__(self) -> str:
-        return "Downloader({}, uri={})".format(self.name, self.uri)
+        return f"Downloader({self.name}, uri={self.uri})"
 
     def get_bibtex_url(self) -> Optional[str]:
         """
@@ -248,8 +247,7 @@ class Downloader(papis.importer.Importer):
             metadata about the document.
         """
         raise NotImplementedError(
-            "Getting a BibTeX URL not implemented for the '{}' downloader".
-            format(self.name))
+            f"Getting a BibTeX URL not implemented for the '{self.name}' downloader")
 
     def get_bibtex_data(self) -> Optional[str]:
         """Get BibTeX data available at :meth:`get_bibtex_url`, if any.
@@ -283,24 +281,24 @@ class Downloader(papis.importer.Importer):
         APIs to gather metadata about the document.
         """
         raise NotImplementedError(
-            "Getting data is not implemented for the '{}' downloader"
-            .format(self.name))
+            f"Getting data is not implemented for the '{self.name}' downloader"
+            )
 
     def get_doi(self) -> Optional[str]:
         """
         :returns: a DOI for the document, if any.
         """
         raise NotImplementedError(
-            "Getting the DOI not implemented for the '{}' downloader"
-            .format(self.name))
+            f"Getting the DOI not implemented for the '{self.name}' downloader"
+            )
 
     def get_document_url(self) -> Optional[str]:
         """
         :returns: a URL to a file that should be downloaded.
         """
         raise NotImplementedError(
-            "Getting a document URL not implemented for the '{}' downloader"
-            .format(self.name))
+            f"Getting a document URL not implemented for the '{self.name}' downloader"
+            )
 
     def get_document_data(self) -> Optional[bytes]:
         """Get data for the downloaded file that is given by :meth:`get_document_url`.
@@ -349,7 +347,7 @@ class Downloader(papis.importer.Importer):
         """Check if the document downloaded by :meth:`download_document` has
         a file type supported by the downloader.
 
-        If the downloader has no prefered type, then all files are accepted.
+        If the downloader has no preferred type, then all files are accepted.
 
         :returns: *True* if the document has a supported file type and *False*
             otherwise.
@@ -370,7 +368,7 @@ class Downloader(papis.importer.Importer):
 
 def get_available_downloaders() -> List[Type[Downloader]]:
     """Get all declared downloader classes."""
-    return papis.plugin.get_available_plugins(_extension_name())
+    return papis.plugin.get_available_plugins(DOWNLOADERS_EXTENSION_NAME)
 
 
 def get_matching_downloaders(url: str) -> List[Downloader]:
@@ -403,7 +401,7 @@ def get_downloader_by_name(name: str) -> Type[Downloader]:
     :returns: a downloader class.
     """
     downloader_class: Type[Downloader] = (
-        papis.plugin.get_extension_manager(_extension_name())[name].plugin
+        papis.plugin.get_extension_manager(DOWNLOADERS_EXTENSION_NAME)[name].plugin
     )
     return downloader_class
 
@@ -442,13 +440,18 @@ def download_document(
         url: str,
         expected_document_extension: Optional[str] = None,
         cookies: Optional[Dict[str, Any]] = None,
+        filename: Optional[str] = None,
         ) -> Optional[str]:
     """Download a document from *url* and store it in a local file.
 
     :param url: the URL of a remote file.
     :param expected_document_extension: an expected file type. If *None*, then
         an extension is guessed from the file contents, but this can also fail.
-    :returns: a path to a local file containing the data from *url*.
+    :param filename: a file name for the document, regardless of the given URL and
+        extension. If not given, a temporary file with the desired extension is
+        used instead.
+
+    :returns: an absolute path to a local file containing the data from *url*.
     """
     if cookies is None:
         cookies = {}
@@ -465,20 +468,26 @@ def download_document(
                      url, response.reason, response.status_code)
         return None
 
-    ext = expected_document_extension
-    if ext is None:
-        from papis.filetype import guess_content_extension
-        ext = guess_content_extension(response.content)
-        if not ext:
-            logger.warning("Downloaded document does not have a "
-                           "recognizable (binary) mimetype: '%s'.",
-                           response.headers["Content-Type"])
+    if filename:
+        outfile = os.path.join(tempfile.gettempdir(), os.path.basename(filename))
+        with open(outfile, mode="wb") as f:
+            f.write(response.content)
+    else:
+        ext = expected_document_extension
+        if ext is None:
+            from papis.filetype import guess_content_extension
+            ext = guess_content_extension(response.content)
+            if not ext:
+                logger.warning("Downloaded document does not have a "
+                               "recognizable (binary) mimetype: '%s'.",
+                               response.headers["Content-Type"])
 
-    ext = ".{}".format(ext) if ext else ""
-    with tempfile.NamedTemporaryFile(
-            mode="wb+",
-            suffix=ext,
-            delete=False) as f:
-        f.write(response.content)
+        ext = f".{ext}" if ext else ""
+        with tempfile.NamedTemporaryFile(
+                mode="wb+",
+                suffix=ext,
+                delete=False) as f:
+            f.write(response.content)
+            outfile = f.name
 
-    return f.name
+    return outfile

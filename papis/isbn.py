@@ -38,10 +38,10 @@ def get_data(query: str = "",
 
 def data_to_papis(data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Convert data from isbnlib into papis formatted data.
+    Convert data from isbnlib into Papis formatted data.
 
     :param data: Dictionary with data
-    :returns: Dictionary with papis key names
+    :returns: Dictionary with Papis key names
     """
     _k = papis.document.KeyConversionPair
     key_conversion = [
@@ -59,11 +59,18 @@ def data_to_papis(data: Dict[str, Any]) -> Dict[str, Any]:
         ]
 
     data = {k.lower(): data[k] for k in data}
-    return papis.document.keyconversion_to_data(
+    result = papis.document.keyconversion_to_data(
         key_conversion, data, keep_unknown_keys=True)
 
+    # NOTE: 'isbnlib' does not give a type at all, so we can't know if this is
+    # a proceeding or any other book-like format. Also, 'isbnlib' always uses
+    # the 'book' type when converting to BibTeX, so we'll do the same.
+    result["type"] = "book"
 
-@click.command("isbn")                  # type: ignore[arg-type]
+    return result
+
+
+@click.command("isbn")
 @click.pass_context
 @click.help_option("--help", "-h")
 @click.option("--query", "-q", default=None)

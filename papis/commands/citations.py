@@ -45,7 +45,7 @@ Command-line Interface
     :prog: papis citations
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 
@@ -65,30 +65,18 @@ logger = papis.logging.get_logger(__name__)
 @click.help_option("--help", "-h")
 @papis.cli.query_argument()
 @papis.cli.sort_option()
-@click.option("-c",
-              "--fetch-citations",
-              default=False,
-              is_flag=True,
-              help="Fetch and save citations")
-@click.option("-d",
-              "--update-from-database",
-              default=False,
-              is_flag=True,
-              help="Fetch and save citations")
-@click.option("-f",
-              "--force",
-              default=False,
-              is_flag=True,
-              help="Force action")
-@click.option("-b",
-              "--fetch-cited-by",
-              default=False,
-              is_flag=True,
-              help="Force action")
+@papis.cli.bool_flag("-c", "--fetch-citations",
+                     help="Fetch and save citations from Crossref")
+@papis.cli.bool_flag("-d", "--update-from-database",
+                     help="Fetch and save citations from database")
+@papis.cli.bool_flag("-b", "--fetch-cited-by",
+                     help="Fetch and save cited-by from database")
+@papis.cli.bool_flag("-f", "--force",
+                     help="Force action")
 @papis.cli.all_option()
 @papis.cli.doc_folder_option()
 def cli(query: str,
-        doc_folder: str,
+        doc_folder: Tuple[str, ...],
         sort_field: Optional[str],
         sort_reverse: bool,
         _all: bool,
@@ -111,7 +99,12 @@ def cli(query: str,
                 logger.info("[%d/%d] Fetching citations for '%s'.",
                             i + 1, len(documents),
                             papis.document.describe(document))
-                fetch_and_save_citations(document)
+                try:
+                    fetch_and_save_citations(document)
+                except ValueError as exc:
+                    logger.error("Failed to fetch citations for document: '%s'",
+                                 papis.document.describe(document), exc_info=exc)
+
         if update_from_database:
             if _has_citations_p:
                 logger.info("[%d/%d] Updating citations from library for '%s'.",

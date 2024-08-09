@@ -7,7 +7,7 @@ import papis.logging
 if TYPE_CHECKING:
     import stevedore.extension
 
-IMPORTER_PLUGIN_ID = "papis.importer"
+IMPORTER_EXTENSION_NAME = "papis.importer"
 
 #: Invariant :class:`TypeVar` bound to the :class:`Importer` class.
 ImporterT = TypeVar("ImporterT", bound="Importer")
@@ -83,10 +83,10 @@ class Importer:
         if not name:
             name = type(self).__module__.split(".")[-1]
 
-        self.ctx: Context = ctx or Context()
+        self.ctx: Context = ctx
         self.uri: str = uri
         self.name: str = name
-        self.logger = papis.logging.get_logger("papis.importer.{}".format(self.name))
+        self.logger = papis.logging.get_logger(f"papis.importer.{self.name}")
 
     @classmethod
     def match(cls, uri: str) -> Optional["Importer"]:
@@ -108,8 +108,8 @@ class Importer:
         """
 
         raise NotImplementedError(
-            "Matching URI is not implemented for '{}.{}'"
-            .format(cls.__module__, cls.__name__))
+            f"Matching URI is not implemented for '{cls.__module__}.{cls.__name__}'"
+            )
 
     @classmethod
     def match_data(cls, data: Dict[str, Any]) -> Optional["Importer"]:
@@ -166,19 +166,19 @@ class Importer:
             .format(type(self).__module__, type(self).__name__))
 
     def __str__(self) -> str:
-        return "{}({}, uri={})".format(type(self).__name__, self.name, self.uri)
+        return f"{type(self).__name__}({self.name}, uri={self.uri})"
 
 
 def get_import_mgr() -> "stevedore.extension.ExtensionManager":
     """Retrieve the :class:`stevedore.extension.ExtensionManager` for
     importer plugins.
     """
-    return papis.plugin.get_extension_manager(IMPORTER_PLUGIN_ID)
+    return papis.plugin.get_extension_manager(IMPORTER_EXTENSION_NAME)
 
 
 def available_importers() -> List[str]:
     """Get a list of available importer names."""
-    return papis.plugin.get_available_entrypoints(IMPORTER_PLUGIN_ID)
+    return papis.plugin.get_available_entrypoints(IMPORTER_EXTENSION_NAME)
 
 
 def get_importers() -> List[Type[Importer]]:

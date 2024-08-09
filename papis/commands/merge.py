@@ -1,13 +1,54 @@
 """
 Merge two documents that might be potentially duplicated.
 
-If your papis picker does not support selecting two items, then
+If your Papis picker does not support selecting two items, then
 pass the ``--pick`` flag to pick twice from the documents.
 
 Examples
 ^^^^^^^^
 
-TODO
+-   Pick the duplicate documents:
+
+    .. code:: sh
+
+        papis merge "prediction and subs"
+
+        /papers/de8d6373a8cef74b5245124ddb288d45-dejong-gerald
+        /papers/0e378c330dba4a4483660388183aa648-dejong-gerald
+
+    With the default picker and config, you can pick the two offending documents
+    with ``CTRL+T`` The selected entries will have a ``#`` in the beginning of
+    the document title.
+
+    Papis will show the difference between the files and let you select which
+    ones you want to keep:
+
+    .. code:: diff
+
+        - collections: ['t3']
+        + collections: ['t3', 't3a2']
+
+    The lines are prefixed by an indication of what will happen on accepting the
+    change. Papis will remove lines prefixed with a minus sign and add those
+    with a plus sign.
+
+-   Merge the documents that match the query "prediction and subs" and commit
+    the changes to git:
+
+    .. code:: sh
+
+        papis merge --git "prediction and subs"
+
+-   Choose which documents to keep:
+
+    .. code:: sh
+
+        papis merge --keep "belief revision"
+
+    After deciding which changes to apply, Papis will prompt for files that
+    should be moved to the resulting location. The files can be chosen entering
+    the numbers that precede the documents.
+
 
 Command-line Interface
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -66,24 +107,17 @@ def run(keep: papis.document.Document,
 @click.help_option("-h", "--help")
 @papis.cli.query_argument()
 @papis.cli.sort_option()
-@click.option("-s",
-              "--second",
-              help="Keep the second document after merge and erase the first, "
-                   "the default is keep the first",
-              default=False,
-              is_flag=True)
-@click.option("-p",
-              "--pick",
-              help="If your picker does not support picking two documents"
-                   " at once, call twice the picker to get two documents",
-              default=False,
-              is_flag=True)
-@click.option("-k",
-              "--keep",
-              "keep_both",
-              help="Do not erase any document",
-              default=False,
-              is_flag=True)
+@papis.cli.bool_flag(
+    "-s", "--second",
+    help="Keep the second document after merge and erase the first, "
+         "the default is keep the first")
+@papis.cli.bool_flag(
+    "-p", "--pick",
+    help="If your picker does not support picking two documents"
+         " at once, call twice the picker to get two documents")
+@papis.cli.bool_flag(
+    "-k", "--keep", "keep_both",
+    help="Do not erase any document")
 @click.option("-o",
               "--out",
               help="Create the resulting document in this path",
@@ -107,10 +141,10 @@ def cli(query: str,
         logger.warning(papis.strings.no_documents_retrieved_message)
         return
 
-    documents = [d for d in papis.pick.pick_doc(documents)]
+    documents = papis.pick.pick_doc(documents)
 
     if pick:
-        other_documents = [d for d in papis.pick.pick_doc(documents)]
+        other_documents = papis.pick.pick_doc(documents)
         documents += other_documents
 
     if len(documents) != 2:

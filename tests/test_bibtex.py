@@ -2,7 +2,7 @@ import os
 import re
 import pytest
 
-from tests.testlib import ResourceCache, TemporaryConfiguration
+from papis.testing import ResourceCache, TemporaryConfiguration
 
 BIBTEX_RESOURCES = os.path.join(os.path.dirname(__file__), "resources", "bibtex")
 
@@ -68,9 +68,9 @@ def test_clean_ref(tmp_config: TemporaryConfiguration) -> None:
     import papis.bibtex
 
     for (r, rc) in [
-            ("Einstein über etwas und so 1923", "EinsteinUberEtwasUndSo1923"),
-            ("Äöasf () : Aλבert Eιنς€in", "AoasfAlbertEinseurin"),
-            (r"Albert_Ein\_stein\.1923.b", "AlbertEin_stein.1923B"),
+            ("Einstein über etwas und so 1923", "Einstein_uber_etwas_und_so_1923"),
+            ("Äöasf () : Aλבert Eιنς€in", "Aoasf_Albert_EinsEURin"),
+            (r"Albert_Ein\_stein\.1923.b", "Albert_Ein__stein_.1923_b"),
             ]:
         assert rc == papis.bibtex.ref_cleanup(r)
 
@@ -116,24 +116,101 @@ def test_to_bibtex_no_ref(tmp_config: TemporaryConfiguration) -> None:
 
 def test_to_bibtex_formatting(tmp_config: TemporaryConfiguration) -> None:
     """Test formatting for the `to_bibtex` function."""
-    import papis.document
-    doc = papis.document.from_data({
+    from papis.bibtex import to_bibtex
+    from papis.document import from_data
+
+    assert to_bibtex(from_data({
         "type": "report",
         "author": "Albert Einstein",
         "title": "The Theory of Everything",
         "journal": "Nature",
         "year": 2350,
-        "ref": "MyDocument"
-        })
-
-    expected_bibtex = (
+        "ref": "MyDocument"})
+        ) == (
         "@report{MyDocument,\n"
-        + "  author = {Albert Einstein},\n"
-        + "  journal = {Nature},\n"
-        + "  title = {The Theory of Everything},\n"
-        + "  year = {2350},\n"
-        + "}"
-        )
+        "  author = {Albert Einstein},\n"
+        "  journal = {Nature},\n"
+        "  title = {The Theory of Everything},\n"
+        "  year = {2350},\n"
+        "}")
 
+    assert to_bibtex(from_data({
+        "type": "misc",
+        "ref": "SDbwLashko2019",
+        "author": "Alexander Lashkov",
+        "url": "https://github.com/alashkov83/S_Dbw"})
+        ) == (
+        "@misc{SDbwLashko2019,\n"
+        "  author = {Alexander Lashkov},\n"
+        "  url = {https://github.com/alashkov83/S_Dbw},\n"
+        "}")
+
+
+def test_overridable(tmp_config: TemporaryConfiguration) -> None:
+    import papis.config
+
+    from papis.bibtex import to_bibtex
+    from papis.document import from_data
+
+    doc = {
+        "type": "report",
+        "author": "Albert Einstein",
+        "title": "Ä α The Theory of Everything & Nothing",
+        "title_latex": r"The Theory of Everything \& Nothing",
+        "journal": "Nature",
+        "year": 2350,
+        "ref": "MyDocument"
+    }
+
+    papis.config.set("bibtex-unicode", True)
+    assert to_bibtex(from_data(doc)) == (
+        "@report{MyDocument,\n"
+        "  author = {Albert Einstein},\n"
+        "  journal = {Nature},\n"
+        "  title = {The Theory of Everything \\& Nothing},\n"
+        "  year = {2350},\n"
+        "}")
+
+    papis.config.set("bibtex-unicode", False)
+    assert to_bibtex(from_data(doc)) == (
+        "@report{MyDocument,\n"
+        "  author = {Albert Einstein},\n"
+        "  journal = {Nature},\n"
+        "  title = {The Theory of Everything "
+        # this will sadly happen, and it makes sense
+        r"\textbackslash \&"
+        " Nothing},\n"
+        "  year = {2350},\n"
+        "}")
+
+
+def test_ignore_keys(tmp_config: TemporaryConfiguration,
+                     monkeypatch: pytest.MonkeyPatch) -> None:
     import papis.bibtex
-    assert papis.bibtex.to_bibtex(doc) == expected_bibtex
+    import papis.config
+
+    from papis.bibtex import to_bibtex
+    from papis.document import from_data
+
+    doc = {
+        "type": "report",
+        "author": "Albert Einstein",
+        "year": 2350,
+        "ref": "MyDocument"
+    }
+    assert to_bibtex(from_data(doc)) == (
+        "@report{MyDocument,\n"
+        "  author = {Albert Einstein},\n"
+        "  year = {2350},\n"
+        "}")
+
+    # TODO: think about this since these keys are not updated
+    #       dynamically and it's possible is not worth it to update dynamically
+    papis.config.set("bibtex-ignore-keys", "['year']")
+    monkeypatch.setattr(papis.bibtex, "bibtex_ignore_keys",
+                        frozenset(papis.config.getlist("bibtex-ignore-keys")))
+
+    assert to_bibtex(from_data(doc)) == (
+        "@report{MyDocument,\n"
+        "  author = {Albert Einstein},\n"
+        "}")

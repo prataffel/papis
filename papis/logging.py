@@ -48,7 +48,7 @@ class ColoramaFormatter(logging.Formatter):
             tb = buffer.getvalue().strip()
             buffer.close()
 
-            return "\n".join("  ┆ {}".format(line) for line in tb.split("\n"))
+            return "\n".join(f"  ┆ {line}" for line in tb.split("\n"))
         else:
             msg = str(exc_info[1])
             if len(msg) > 48:
@@ -62,7 +62,7 @@ class ColoramaFormatter(logging.Formatter):
         """Format the specified record as text.
 
         This adds color coding to the logging levels, includes the exception
-        into the message, removes the papis namespace from the name, etc. Any
+        into the message, removes the ``papis`` namespace from the name, etc. Any
         formatting of the logging output is made here.
         """
 
@@ -80,7 +80,7 @@ class ColoramaFormatter(logging.Formatter):
 
         if record.exc_info and not self.full_tb:
             exc_text = self.formatException(record.exc_info)
-            record.msg = "{} {}".format(record.msg, exc_text)
+            record.msg = f"{record.msg} {exc_text}"
             record.exc_text = None
             record.exc_info = None
 
@@ -132,7 +132,7 @@ def setup(level: Optional[Union[int, str]] = None,
             verbose = False
 
     if color not in ("always", "auto", "no"):
-        raise ValueError("Unknown 'color' value: '{}'".format(color))
+        raise ValueError(f"Unknown 'color' value: '{color}'")
 
     if _disable_color(color):
         # Turn off colorama (strip escape sequences from the output)
@@ -144,10 +144,10 @@ def setup(level: Optional[Union[int, str]] = None,
         try:
             level = int(getattr(logging, level))
         except AttributeError:
-            raise ValueError("Unknown logger level: '{}'".format(level))
+            raise ValueError(f"Unknown logger level: '{level}'")
     else:
         if logging.getLevelName(level).startswith("Level"):
-            raise ValueError("Unknown logger level: '{}'".format(level))
+            raise ValueError(f"Unknown logger level: '{level}'")
 
     log_format = (
         "{c.Fore.GREEN}%(name)s{c.Style.RESET_ALL}: %(message)s"
@@ -155,9 +155,9 @@ def setup(level: Optional[Union[int, str]] = None,
 
     if verbose:
         level = logging.DEBUG
-        log_format = "[%(relativeCreated)d %(levelname)s] {}".format(log_format)
+        log_format = f"[%(relativeCreated)d %(levelname)s] {log_format}"
     else:
-        log_format = "[%(levelname)s] {}".format(log_format)
+        log_format = f"[%(levelname)s] {log_format}"
 
     if logfile is None:
         full_tb = level == logging.DEBUG
@@ -193,10 +193,10 @@ def reset(level: Optional[Union[int, str]] = None,
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
-    """Get a logger instance for the given name under the papis namespace.
+    """Get a logger instance for the given name under the ``papis`` namespace.
 
     :arg name: the provisional name of the logger instance.
-    :returns: a :class:`logging.Logger` under the papis namespace, i.e. with a
+    :returns: a :class:`logging.Logger` under the ``papis`` namespace, i.e. with a
         name such as ``papis.<name>``.
     """
     if name is None or name.startswith("papis."):

@@ -3,47 +3,18 @@ import sys
 import pytest
 import tempfile
 
-import papis.config
-
-from tests.testlib import TemporaryConfiguration
+from papis.testing import TemporaryConfiguration
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="uses linux paths")
 def test_get_cache_home(tmp_config: TemporaryConfiguration, monkeypatch) -> None:
+    import papis.config
     from papis.utils import get_cache_home
-    tmpdir = tempfile.gettempdir()
 
-    with monkeypatch.context() as m:
-        m.delenv("XDG_CACHE_HOME", raising=False)
-        assert get_cache_home() == os.path.join(os.path.expanduser("~/.cache"), "papis")
-
-    with monkeypatch.context() as m:
-        m.setenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
-        assert get_cache_home() == os.path.join(os.environ["XDG_CACHE_HOME"], "papis")
-
-    with monkeypatch.context() as m:
-        m.setenv("XDG_CACHE_HOME", os.path.join(tmpdir, ".cache"))
-
-        assert get_cache_home() == os.path.join(tmpdir, ".cache", "papis")
-        assert os.path.exists(get_cache_home())
-
+    assert get_cache_home() == os.path.join(tmp_config.tmpdir, "papis")
     with tempfile.TemporaryDirectory(dir=tmp_config.tmpdir) as d:
         tmp = os.path.join(d, "blah")
-        papis.config.set("cache-dir", tmp)
+        papis.config.set("cache-dir", papis.config.escape_interp(tmp))
         assert get_cache_home() == tmp
-
-
-def test_create_identifier() -> None:
-    import string
-    from papis.utils import create_identifier
-
-    expected = [
-        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-        "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-        "AA", "AB", "AC", "AD"
-    ]
-    for value, output in zip(expected, create_identifier(string.ascii_uppercase)):
-        assert output == value
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="uses linux tools")
@@ -73,31 +44,31 @@ def test_general_open_with_spaces(tmp_config: TemporaryConfiguration) -> None:
 def test_locate_document(tmp_config: TemporaryConfiguration) -> None:
     from papis.document import from_data
     docs = [
-        from_data(dict(doi="10.1021/ct5004252", title="Hello world")),
+        from_data({"doi": "10.1021/ct5004252", "title": "Hello world"}),
         from_data(
-            dict(
-                doi="10.123/12afad12",
-                author="noone really",
-                title="Hello world"
-            )
+            {
+                "doi": "10.123/12afad12",
+                "author": "no one really",
+                "title": "Hello world"
+            }
         ),
     ]
 
     from papis.utils import locate_document
 
-    doc = from_data(dict(doi="10.1021/CT5004252"))
+    doc = from_data({"doi": "10.1021/CT5004252"})
     found_doc = locate_document(doc, docs)
     assert found_doc is not None
 
-    doc = from_data(dict(doi="CT5004252"))
+    doc = from_data({"doi": "CT5004252"})
     found_doc = locate_document(doc, docs)
     assert found_doc is None
 
-    doc = from_data(dict(author="noone really"))
+    doc = from_data({"author": "no one really"})
     found_doc = locate_document(doc, docs)
     assert found_doc is None
 
-    doc = from_data(dict(title="Hello world"))
+    doc = from_data({"title": "Hello world"})
     found_doc = locate_document(doc, docs)
     assert found_doc is None
 
@@ -116,21 +87,6 @@ def test_extension(tmp_config: TemporaryConfiguration) -> None:
     from papis.filetype import get_document_extension
     for d in docs:
         assert get_document_extension(d[0]) == d[1]
-
-
-def test_slugify(tmp_config: TemporaryConfiguration) -> None:
-    from papis.utils import clean_document_name
-
-    assert (
-        clean_document_name("{{] __ }}albert )(*& $ß $+_ einstein (*]")
-        == "albert-ss-einstein"
-    )
-    assert (
-        clean_document_name('/ashfd/df/  #$%@#$ }{_+"[ ]hello öworld--- .pdf')
-        == "hello-oworld-.pdf"
-    )
-    assert clean_document_name("масса и енергиа.pdf") == "massa-i-energia.pdf"
-    assert clean_document_name("الامير الصغير.pdf") == "lmyr-lsgyr.pdf"
 
 
 def test_yaml_unicode_dump(tmp_config: TemporaryConfiguration) -> None:

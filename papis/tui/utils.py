@@ -1,7 +1,10 @@
 import re
-from typing import Optional, List, Callable, Any
+from typing import Optional, List, Callable, Any, Iterable
 
 import click
+
+from papis.api import T
+
 
 # Highlighting style used by pygments. This is a copy of the prompt_toolkit
 # default style, but changed to use ansi colors.
@@ -70,25 +73,36 @@ def confirm(prompt_string: str,
 
 
 def text_area(text: str,
-              lexer_name: str = ""):
+              title: str = "",
+              lexer_name: str = "") -> None:
     """
     Small implementation of a pager for small pieces of text.
 
-    :param text: text
-    :param lexer_name: If the text should be highlighted with
-        some kind of grammar, examples are ``yaml``, ``python`` ...
+    :param text: main text to be displayed.
+    :param title: a title for the text.
+    :param lexer_name: a pygments lexer name (e.g. ``yaml``, ``python``) if the
+        text should be highlighted.
     """
     from pygments.lexers import find_lexer_class_by_name
 
-    import pygments
-    from prompt_toolkit import print_formatted_text
     pygment_lexer = find_lexer_class_by_name(lexer_name)
-    tokens = list(pygments.lex(text, lexer=pygment_lexer()))
-    from prompt_toolkit.formatted_text import PygmentsTokens
 
+    from prompt_toolkit.lexers import PygmentsLexer
+    from prompt_toolkit.shortcuts import print_container
     from prompt_toolkit.styles import Style
+    from prompt_toolkit.widgets import Frame, TextArea
+
     papis_style = Style.from_dict(PAPIS_PYGMENTS_DEFAULT_STYLE)
-    print_formatted_text(PygmentsTokens(tokens), style=papis_style)
+    print_container(
+        Frame(
+            TextArea(
+                text=text,
+                lexer=PygmentsLexer(pygment_lexer),  # type: ignore[arg-type]
+            ),
+            title=title,
+        ),
+        style=papis_style,
+    )
 
 
 def yes_no_dialog(title: str, text: str) -> Any:
@@ -131,17 +145,44 @@ def prompt(
 
     fragments = [
         ("", prompt_string),
-        ("fg:ansired", " ({})".format(default)),
+        ("fg:ansired", f" ({default})"),
         ("", ": "),
     ]
 
-    result = prompt_toolkit.prompt(fragments,
+    result = prompt_toolkit.prompt(fragments,       # type: ignore[arg-type]
                                    validator=validator,
                                    multiline=multiline,
                                    bottom_toolbar=bottom_toolbar,
                                    validate_while_typing=True)
 
     return result or default
+
+
+def progress_bar(iterable: Iterable[T]) -> Iterable[T]:
+    from prompt_toolkit.styles import Style
+    from prompt_toolkit.shortcuts import ProgressBar
+    from prompt_toolkit.shortcuts.progress_bar import formatters
+
+    # NOTE: this style is chosen to make it look like the default tqdm bar
+    style = Style.from_dict({"bar-a": "reverse"})
+    fmt = [
+        formatters.Percentage(),
+        formatters.Bar(start="|", end="|", sym_a=" ", sym_b=" ", sym_c=" "),
+        formatters.Text(" "),
+        formatters.Progress(),
+        formatters.Text(" ["),
+        formatters.TimeElapsed(),
+        formatters.Text("<"),
+        formatters.TimeLeft(),
+        formatters.Text(", "),
+        formatters.IterationsPerSecond(),
+        formatters.Text(" it/s]"),
+        formatters.Text("  "),
+    ]
+
+    with ProgressBar(style=style, formatters=fmt) as pb:
+        for item in pb(iterable):
+            yield item
 
 
 def get_range(range_str: str) -> List[int]:
@@ -159,7 +200,7 @@ def select_range(options: List[Any],
                  accept_none: bool = False,
                  bottom_toolbar: Optional[str] = None) -> List[int]:
     for i, o in enumerate(options):
-        click.echo("{i}. {o}".format(i=i, o=o))
+        click.echo(f"{i}. {o}")
 
     possible_indices = range(len(options))
     all_keywords = ["all", "a"]

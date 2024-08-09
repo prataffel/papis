@@ -1,15 +1,29 @@
 import os
+
 import pytest
 
 import papis.database
 
-from tests.testlib import TemporaryLibrary, PapisRunner
+from papis.testing import TemporaryLibrary, PapisRunner
 
-script = os.path.join(os.path.dirname(__file__), "scripts.py")
+
+def get_mock_script(name: str) -> str:
+    """Constructs a command call for a command mocked by ``scripts.py``.
+
+    :param name: the name of the command, e.g. ``ls`` or ``echo``.
+    :returns: a string of the command
+    """
+    import sys
+
+    script = os.path.join(os.path.dirname(__file__), "scripts.py")
+
+    from papis.config import escape_interp
+
+    return escape_interp("{} {} {}".format(sys.executable, script, name))
 
 
 @pytest.mark.library_setup(settings={
-    "editor": "python {} sed".format(script)
+    "editor": get_mock_script("sed")
     })
 def test_edit_run(tmp_library: TemporaryLibrary) -> None:
     import papis.config
@@ -30,7 +44,7 @@ def test_edit_run(tmp_library: TemporaryLibrary) -> None:
 
 
 @pytest.mark.library_setup(settings={
-    "editor": "echo",
+    "editor": get_mock_script("echo")
     })
 def test_edit_cli(tmp_library: TemporaryLibrary) -> None:
     from papis.commands.edit import cli
@@ -49,11 +63,13 @@ def test_edit_cli(tmp_library: TemporaryLibrary) -> None:
     assert result.exit_code == 0
 
     # check --all
+    ls = get_mock_script("ls")
     result = cli_runner.invoke(
         cli,
-        ["--all", "--editor", "ls", "krishnamurti"])
+        ["--all", "--editor", ls, "krishnamurti"])
     assert result.exit_code == 0
-    assert papis.config.get("editor") == "ls"
+    assert (papis.config.escape_interp(papis.config.get("editor"))
+            == get_mock_script("ls"))
 
     # check --notes
     notes_name = papis.config.get("notes-name")
@@ -61,9 +77,10 @@ def test_edit_cli(tmp_library: TemporaryLibrary) -> None:
 
     result = cli_runner.invoke(
         cli,
-        ["--all", "--editor", "echo", "--notes", "krishnamurti"])
+        ["--all", "--editor", get_mock_script("echo"), "--notes", "krishnamurti"])
     assert result.exit_code == 0
-    assert papis.config.get("editor") == "echo"
+    assert (papis.config.escape_interp(papis.config.get("editor"))
+            == get_mock_script("echo"))
 
     db = papis.database.get()
     doc, = db.query_dict({"author": "Krishnamurti"})

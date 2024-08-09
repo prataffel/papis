@@ -13,11 +13,11 @@ import papis.logging
 logger = papis.logging.get_logger(__name__)
 
 
-def get_cache_file_name(directory: str) -> str:
+def get_cache_file_name(libpaths: str) -> str:
     """Create a cache file name out of the path of a given directory.
 
-    :param directory: Folder name to be used as a seed for the cache name.
-    :returns: Name for the cache file.
+    :param libpaths: folder names to be used as a seed for the cache name.
+    :returns: a name for the cache file specific to *libpaths*.
 
     >>> get_cache_file_name('path/to/my/lib')
     'a8c689820a94babec20c5d6269c7d488-lib'
@@ -26,24 +26,20 @@ def get_cache_file_name(directory: str) -> str:
     """
     import hashlib
     return "{}-{}".format(
-        hashlib.md5(directory.encode()).hexdigest(),
-        os.path.basename(directory))
+        hashlib.md5(libpaths.encode()).hexdigest(),
+        os.path.basename(libpaths))
 
 
-def get_cache_file_path(directory: str) -> str:
-    """Get the full path to the cache file
+def get_cache_file_path(libpaths: str) -> str:
+    """Get the full path to the cache file.
 
-    :param directory: Library folder
-
-    >>> import os; os.environ["XDG_CACHE_HOME"] = '/tmp'
-    >>> os.path.basename(get_cache_file_path('blah/papers'))
-    'c39177eca0eaea2e21134b0bd06631b6-papers'
+    :param libpaths: a cache file specific for the given library paths.
     """
-    cache_name = get_cache_file_name(directory)
-    folder = os.path.expanduser(
-        os.path.join(papis.utils.get_cache_home(), "database"))
+    cache_name = get_cache_file_name(libpaths)
+    folder = os.path.join(papis.utils.get_cache_home(), "database")
     if not os.path.exists(folder):
         os.makedirs(folder)
+
     return os.path.join(folder, cache_name)
 
 
@@ -52,8 +48,8 @@ def filter_documents(
         search: str = "") -> List[papis.document.Document]:
     """Filter documents. It can be done in a multi core way.
 
-    :param documents: List of papis documents.
-    :param search: Valid papis search string.
+    :param documents: List of Papis documents.
+    :param search: Valid Papis search string.
     :returns: List of filtered documents
 
     >>> document = papis.document.from_data({'author': 'einstein'})
@@ -66,8 +62,8 @@ def filter_documents(
 
     """
     papis.docmatcher.DocMatcher.set_search(search)
-    papis.docmatcher.DocMatcher.parse()
     papis.docmatcher.DocMatcher.set_matcher(match_document)
+    papis.docmatcher.DocMatcher.parse()
 
     logger.debug("Filtering %d docs (search '%s').", len(documents), search)
 
@@ -124,6 +120,9 @@ class Database(papis.database.base.Database):
         self.documents: Optional[List[papis.document.Document]] = None
         self.initialize()
 
+    def get_cache_path(self) -> str:
+        return self._get_cache_file_path()
+
     def get_backend_name(self) -> str:
         return "papis"
 
@@ -141,7 +140,7 @@ class Database(papis.database.base.Database):
             import pickle
             with open(cache_path, "rb") as fd:
                 self.documents = pickle.load(fd)
-        else:
+        elif self.get_dirs():
             logger.info("Indexing library. This might take a while...")
             folders: List[str] = sum(
                 [papis.utils.get_folders(d) for d in self.get_dirs()],
@@ -152,12 +151,14 @@ class Database(papis.database.base.Database):
                 self.maybe_compute_id(doc)
             if use_cache:
                 self.save()
+        else:
+            self.documents = []
+
         logger.debug("Loaded %d documents.", len(self.documents))
         return self.documents
 
     def add(self, document: papis.document.Document) -> None:
         logger.debug("Adding document: '%s'.", papis.document.describe(document))
-
         docs = self.get_documents()
         self.maybe_compute_id(document)
         docs.append(document)
@@ -206,7 +207,7 @@ class Database(papis.database.base.Database):
     def query_dict(self,
                    dictionary: Dict[str, str]) -> List[papis.document.Document]:
         query_string = " ".join(
-            ['{}:"{}" '.format(key, val) for key, val in dictionary.items()])
+            [f'{key}:"{val}" ' for key, val in dictionary.items()])
         return self.query(query_string)
 
     def query(self, query_string: str) -> List[papis.document.Document]:
@@ -243,6 +244,14 @@ class Database(papis.database.base.Database):
             document: papis.document.Document
             ) -> List[Tuple[int, papis.document.Document]]:
         assert isinstance(document, papis.document.Document)
+
+        result = list(filter(
+            lambda d: d[1]["papis_id"] == document["papis_id"],
+            enumerate(self.get_documents())))
+
+        if result:
+            return result
+
         result = list(filter(
             lambda d: d[1].get_main_folder() == document.get_main_folder(),
             enumerate(self.get_documents())))

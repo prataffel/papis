@@ -5,6 +5,7 @@ import papis.downloaders.base
 
 
 class Downloader(papis.downloaders.Downloader):
+    """Retrieve documents from `Frontiers <https://www.frontiersin.org>`__"""
 
     def __init__(self, url: str) -> None:
         super().__init__(
@@ -30,13 +31,11 @@ class Downloader(papis.downloaders.Downloader):
         return None
 
     def get_document_url(self) -> Optional[str]:
-        durl = ("https://www.frontiersin.org/articles/{doi}/pdf"
-                .format(doi=self.get_doi()))
+        durl = f"https://www.frontiersin.org/articles/{self.get_doi()}/pdf"
         self.logger.debug("Using document URL: '%s'.", durl)
         return durl
 
     def get_bibtex_url(self) -> Optional[str]:
-        url = ("https://www.frontiersin.org/articles/{doi}/bibTex"
-               .format(doi=self.get_doi()))
+        url = f"https://www.frontiersin.org/articles/{self.get_doi()}/bibTex"
         self.logger.debug("Using BibTeX URL: '%s'.", url)
         return url

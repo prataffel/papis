@@ -29,7 +29,7 @@ Command-line Interface
 """
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import click
 import papis.api
@@ -49,16 +49,20 @@ logger = papis.logging.get_logger(__name__)
 
 def run(document: papis.document.Document,
         filepaths: List[str],
+        link: bool = False,
         git: bool = False) -> None:
     doc_folder = document.get_main_folder()
     if not doc_folder or not os.path.exists(doc_folder):
         raise DocumentFolderNotFound(papis.document.describe(document))
 
-    from papis.utils import create_identifier
-    suffix = create_identifier(skip=len(document.get_files()))
+    from papis.paths import unique_suffixes
+
+    nfiles = len(document.get_files())
+    gen_suffix = unique_suffixes(skip=nfiles - 1)
+    suffix = "" if nfiles == 0 else next(gen_suffix)
 
     from papis.downloaders import download_document
-    from papis.commands.add import get_file_name
+    from papis.paths import symlink, get_document_file_name
 
     tmp_file = None
     new_file_list = []
@@ -71,34 +75,33 @@ def run(document: papis.document.Document,
             local_in_file_path = in_file_path
 
         if not os.path.exists(local_in_file_path):
-            raise FileNotFoundError("File '{}' not found".format(in_file_path))
+            raise FileNotFoundError(f"File '{in_file_path}' not found")
 
         # Rename the file in the staging area
-        new_filename = get_file_name(
-            papis.document.to_dict(document),
-            local_in_file_path,
-            suffix=next(suffix)
-        )
+        new_filename = get_document_file_name(
+            document, local_in_file_path,
+            suffix=suffix)
         out_file_path = os.path.join(doc_folder, new_filename)
         new_file_list.append(new_filename)
-
-        # Check if the absolute file path is > 255 characters
-        if len(os.path.abspath(out_file_path)) >= 255:
-            logger.warning(
-                "Length of absolute path is > 255 characters. "
-                "This may cause some issues with some PDF viewers.")
 
         if os.path.exists(out_file_path):
             logger.warning("File '%s' already exists. Skipping...", out_file_path)
             continue
 
-        import shutil
-        logger.info("[CP] '%s' to '%s'.", local_in_file_path, out_file_path)
-        shutil.copy(local_in_file_path, out_file_path)
+        if link:
+            in_file_abspath = os.path.abspath(in_file_path)
+            logger.info("[SYMLINK] '%s' to '%s'.", in_file_abspath, out_file_path)
+            symlink(in_file_abspath, out_file_path)
+        else:
+            import shutil
+            logger.info("[CP] '%s' to '%s'.", local_in_file_path, out_file_path)
+            shutil.copy(local_in_file_path, out_file_path)
 
         if tmp_file:
             os.unlink(tmp_file.name)
             tmp_file = None
+
+        suffix = next(gen_suffix)
 
     if "files" not in document:
         document["files"] = []
@@ -107,7 +110,6 @@ def run(document: papis.document.Document,
     papis.api.save_doc(document)
 
     if git:
-
         for r in new_file_list + [document.get_info_file()]:
             papis.git.add(doc_folder, r)
         papis.git.commit(
@@ -129,14 +131,20 @@ def run(document: papis.document.Document,
 @click.option("--file-name",
               help="File name for the document (papis format)",
               default=None)
+@click.option(
+    "--link/--no-link",
+    help="Instead of copying the file to the library, create a link to "
+         "its original location",
+    default=False)
 @papis.cli.doc_folder_option()
 def cli(query: str,
         git: bool,
+        link: bool,
         files: List[str],
         urls: List[str],
         file_name: Optional[str],
         sort_field: Optional[str],
-        doc_folder: str,
+        doc_folder: Tuple[str, ...],
         sort_reverse: bool) -> None:
     """Add files to an existing document"""
     documents = papis.cli.handle_doc_folder_query_sort(
@@ -154,9 +162,9 @@ def cli(query: str,
     document = docs[0]
 
     if file_name is not None:  # Use args if set
-        papis.config.set("add-file-name", file_name)
+        papis.config.set("add-file-name", papis.config.escape_interp(file_name))
 
     try:
-        run(document, files + urls, git=git)
+        run(document, files + urls, git=git, link=link)
     except Exception as exc:
         logger.error("Failed to add files.", exc_info=exc)

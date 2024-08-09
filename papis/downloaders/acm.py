@@ -5,6 +5,7 @@ import papis.downloaders.base
 
 
 class Downloader(papis.downloaders.Downloader):
+    """Retrieve documents from `ACM <https://www.acm.org>`__"""
 
     def __init__(self, url: str) -> None:
         super().__init__(
@@ -31,7 +32,6 @@ class Downloader(papis.downloaders.Downloader):
         return None
 
     def get_document_url(self) -> Optional[str]:
-        durl = ("https://dl.acm.org/doi/pdf/{doi}"
-                .format(doi=self.get_doi()))
+        durl = f"https://dl.acm.org/doi/pdf/{self.get_doi()}"
         self.logger.debug("Using document URL: '%s'.", durl)
         return durl

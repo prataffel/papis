@@ -1,15 +1,15 @@
-"""This is the whoosh interface to papis. For future papis developers
+"""This is the whoosh interface to Papis. For future Papis developers
 here are some considerations.
 
 Whoosh works with 3 main objects, the Index, the Writer and the Schema.
-The indices are stored in a folder which by default is in
-``$XDG_CACHE_HOME/papis/whoosh``. The name of the indices
-folders is similar to the cache files of the papis cache database.
+The indices are stored in a subfolder of :func:`~papis.utils.get_cache_home`.
+The name of the indices folders is similar to the cache files of the papis
+cache database.
 
 Once the index is created in the mentioned folder, a Schema is initialized,
 which is a declaration of the data prototype of the database, or the
 definition of the table in sql parlance. This is controlled by the
-papis configuration through the `whoosh-schema-prototype`. For instance
+Papis configuration through the `whoosh-schema-prototype`. For instance
 if the database is supposed to only contain the key fields
 ``author``, ``title``, ``year`` and ``tags``, then the
 ``whoosh-schema-prototype`` STRING should look like the following:
@@ -74,6 +74,9 @@ class Database(papis.database.base.Database):
 
         self.initialize()
 
+    def get_cache_path(self) -> str:
+        return self.index_dir
+
     def get_backend_name(self) -> str:
         return "whoosh"
 
@@ -113,7 +116,7 @@ class Database(papis.database.base.Database):
     def query_dict(self,
                    dictionary: Dict[str, str]) -> List[papis.document.Document]:
         query_string = " AND ".join(
-            ['{}:"{}" '.format(key, val) for key, val in dictionary.items()])
+            [f'{key}:"{val}" ' for key, val in dictionary.items()])
         return self.query(query_string)
 
     def query(self, query_string: str) -> List[papis.document.Document]:
@@ -224,7 +227,7 @@ class Database(papis.database.base.Database):
             user_fields = self.get_schema_init_fields()
             db_fields = self.get_schema()
 
-            user_field_names = sorted(list(user_fields))
+            user_field_names = sorted(user_fields)
             db_field_names = sorted(db_fields.names())
 
             # If the user fields and the fields in the DB

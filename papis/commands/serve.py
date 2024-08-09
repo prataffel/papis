@@ -3,9 +3,9 @@ import os
 import json
 import http.server
 import urllib.parse
-from typing import Any, List, Optional, Tuple, Callable, Dict  # noqa: ignore
+from typing import Any, List, Optional, Tuple, Callable, Dict
+
 import functools
-import cgi
 import collections
 import tempfile
 
@@ -24,14 +24,6 @@ import papis.notes
 import papis.citations
 import papis.logging
 
-import papis.web.static
-import papis.web.libraries
-import papis.web.tags
-import papis.web.docview
-import papis.web.search
-import papis.web.pdfjs
-
-
 logger = papis.logging.get_logger(__name__)
 
 USE_GIT = False
@@ -39,6 +31,87 @@ TAGS_LIST: Dict[str, Optional[Dict[str, int]]] = {}
 
 
 AnyFn = Callable[..., Any]
+
+
+try:
+    # NOTE: the cgi module is being removed in python 3.13, so we add our own
+    # little copy of FieldStorage when it's not available
+    from cgi import FieldStorage
+except ImportError:
+    from email.message import Message
+    from dataclasses import dataclass, field
+    from typing import IO, Iterator, Union
+
+    @dataclass
+    class MiniFieldStorage:
+        name: str
+        value: str
+
+        def __repr__(self) -> str:
+            return f"MiniFieldStorage({self.name!r}, {self.value!r})"
+
+    @dataclass
+    class FieldStorage:  # type: ignore[no-redef]
+        # NOTE: fields taken from cgi.FieldStorage.__init__
+        # https://github.com/python/cpython/blob/3.12/Lib/cgi.py#L330
+
+        fp: Optional[IO[bytes]] = None
+        headers: Union[Dict[str, str], Message] = field(default_factory=dict)
+        outerboundary: bytes = b""
+        environ: Dict[str, str] = field(default_factory=dict)
+        keep_blank_values: bool = False
+        strict_parsing: bool = False
+        limit: Optional[int] = None
+        encoding: str = "utf-8"
+        errors: str = "replace"
+        max_num_fields: Optional[int] = None
+        separator: str = "&"
+
+        def __post_init__(self) -> None:
+            self.read_urlencoded()
+
+        @property
+        def length(self) -> int:
+            return int(self.headers.get("content-length", -1))
+
+        @property
+        def qs_on_post(self) -> Optional[str]:
+            return None
+
+        def read_urlencoded(self) -> None:
+            assert self.fp is not None
+
+            qs_b = self.fp.read(self.length)
+            if not isinstance(qs_b, bytes):
+                raise ValueError(
+                    f"'{self.fp}' should return bytes, got {type(qs_b).__name__}")
+
+            qs = qs_b.decode(self.encoding, self.errors)
+            if self.qs_on_post:
+                qs += "&" + self.qs_on_post
+
+            query = urllib.parse.parse_qsl(
+                qs,
+                self.keep_blank_values,
+                self.strict_parsing,
+                encoding=self.encoding,
+                errors=self.errors,
+                max_num_fields=self.max_num_fields,
+                separator=self.separator)
+
+            self.list = [MiniFieldStorage(key, value) for key, value in query]
+
+        def getvalue(self, name: str) -> str:
+            result = [fs for fs in self.list if fs.name == name]
+            assert len(result) == 1
+
+            return result[0].value
+
+        def __iter__(self) -> Iterator[str]:
+            return iter(self.keys())
+
+        def keys(self) -> List[str]:
+            return list({fs.name for fs in self.list})
 
 
 # Decorators
@@ -69,7 +142,7 @@ def ok_html(fun: AnyFn) -> AnyFn:
 class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
 
     """
-    The main request handler of the papis web application.
+    The main request handler of the Papis web application.
     """
 
     def log_message(self, fmt: str, *args: Any) -> None:
@@ -112,6 +185,8 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
                   libname: Optional[str] = None,
                   docs: Optional[List[papis.document.Document]] = None,
                   query: Optional[str] = None) -> None:
+        import papis.web.search
+
         if docs is None:
             docs = []
 
@@ -124,6 +199,7 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         if len(docs) == 0:
             if papis.config.getboolean("serve-empty-query-get-all-documents"):
                 docs = papis.api.get_all_documents_in_lib(libname)
+
         libfolder = papis.config.get_lib_from_name(libname).paths[0]
         placeholder = papis.web.search.QUERY_PLACEHOLDER
         page = papis.web.search.html(documents=docs,
@@ -143,7 +219,10 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         db.initialize()
 
     @ok_html
-    def page_tags(self, libname: Optional[str] = None) -> None:
+    def page_tags(self, libname: Optional[str] = None,
+                  sort_by: Optional[str] = None) -> None:
+        import papis.web.tags
+
         global TAGS_LIST
         libname = libname or papis.api.get_lib_name()
         self._handle_lib(libname)
@@ -154,11 +233,12 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         if TAGS_LIST.get(libname) is None:
             TAGS_LIST[libname] = collections.defaultdict(int)
             for tag in tags_of_tags:
-                TAGS_LIST[libname][tag] += 1  # type: ignore
+                TAGS_LIST[libname][tag] += 1  # type: ignore[index]
 
         page = papis.web.tags.html(libname=libname,
                                    pretitle="TAGS",
-                                   tags=TAGS_LIST[libname] or {})
+                                   tags=TAGS_LIST[libname] or {},
+                                   sort_by=sort_by or "")
 
         self.wfile.write(bytes(str(page), "utf-8"))
         self.wfile.flush()
@@ -168,10 +248,12 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         libname = libname or papis.api.get_lib_name()
         self._handle_lib(libname)
         TAGS_LIST[libname] = None
-        self.redirect("/library/{}/tags".format(libname))
+        self.redirect(f"/library/{libname}/tags")
 
     @ok_html
     def page_libraries(self) -> None:
+        import papis.web.libraries
+
         libname = papis.api.get_lib_name()
         page = papis.web.libraries.html(libname=libname)
         self.wfile.write(bytes(str(page), "utf-8"))
@@ -179,6 +261,8 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
 
     @ok_html
     def page_document(self, libname: str, papis_id: str) -> None:
+        import papis.web.docview
+
         doc = self._get_document(libname, papis_id)
         page = papis.web.docview.html(libname=libname, doc=doc)
         self.wfile.write(bytes(str(page), "utf-8"))
@@ -244,11 +328,11 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         self._send_json(docs)
 
     def redirect(self, url: str, code: int = 301) -> None:
-        page = ("""
+        page = (f"""
                   <head>
                      <meta http-equiv="Refresh" content="0; URL={url}">
                   </head>
-                """.format(url=url))
+                """)
         self.send_response(code)
         self.send_header_html()
         self.send_header("Location", url)
@@ -280,7 +364,7 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(f.read())
             self.wfile.flush()
         else:
-            raise FileNotFoundError("File '{}' does not exist".format(path))
+            raise FileNotFoundError(f"File '{path}' does not exist")
 
     def process_routes(self,
                        routes: List[Tuple[str, Any]]) -> None:
@@ -298,8 +382,8 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
             self._send_json_error(400, str(e))
         else:
             self._send_json_error(404,
-                                  "Server path {} not understood"
-                                  .format(self.path))
+                                  f"Server path {self.path} not understood"
+                                  )
 
     def _handle_lib(self, libname: str) -> None:
         papis.api.set_lib_from_name(libname)
@@ -312,14 +396,14 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         doc = db.find_by_id(papis_id)
         if not doc:
             raise ValueError(
-                "Document with ref '{}' not found in the database".format(papis_id)
+                f"Document with ref '{papis_id}' not found in the database"
                 )
         return doc
 
-    def _get_form(self, method: str = "POST") -> cgi.FieldStorage:
-        return cgi.FieldStorage(fp=self.rfile,
-                                headers=self.headers,
-                                environ={"REQUEST_METHOD": method})
+    def _get_form(self, method: str = "POST") -> FieldStorage:
+        return FieldStorage(fp=self.rfile,
+                            headers=self.headers,
+                            environ={"REQUEST_METHOD": method})
 
     def update_notes(self, libname: str, papis_id: str) -> None:
         doc = self._get_document(libname, papis_id)
@@ -350,7 +434,7 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         try:
             papis.yaml.yaml_to_data(fdr.name, raise_exception=True)
         except ValueError as e:
-            self._send_json_error(404, "Error in info file: {}".format(e))
+            self._send_json_error(404, f"Error in info file: {e}")
             os.unlink(fdr.name)
             return
         else:
@@ -383,6 +467,8 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         self._redirect_back()
 
     def serve_static(self, static_path: str, params: str) -> None:
+        import papis.web.static
+
         folders = papis.web.static.static_paths()
         partial_path = urllib.parse.unquote_plus(static_path)
         for folder in folders:
@@ -406,7 +492,7 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.flush()
             return
 
-        raise FileNotFoundError("File '{}' does not exist".format(path))
+        raise FileNotFoundError(f"File '{path}' does not exist")
 
     def do_POST(self) -> None:              # noqa: N802
         """
@@ -444,7 +530,7 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.page_query),
             ("^/library/?([^/]+)?/document/([a-z0-9]+)$",
                 self.page_document),
-            ("^/library/([^/]+)/tags$",
+            ("^/library/([^/]+)/tags(?:[?]sort=(.*))?$",
                 self.page_tags),
             ("^/library/([^/]+)/tags/refresh$",
                 self.page_tags_refresh),
@@ -470,7 +556,7 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         self.process_routes(routes)
 
 
-@click.command("serve")                 # type: ignore[arg-type]
+@click.command("serve")
 @click.help_option("-h", "--help")
 @click.option("-p", "--port",
               help="Port to listen to",
@@ -487,6 +573,8 @@ def cli(address: str, port: int, git: bool) -> None:
     global USE_GIT
     USE_GIT = git
     server_address = (address, port)
+
+    import papis.web.pdfjs
 
     if not papis.web.pdfjs.detect_pdfjs():
         logger.warning(papis.web.pdfjs.error_message())

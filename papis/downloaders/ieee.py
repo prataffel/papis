@@ -6,6 +6,7 @@ import papis.downloaders.base
 
 
 class Downloader(papis.downloaders.Downloader):
+    """Retrieve documents from `IEEE Xplore <https://ieeexplore.ieee.org>`__"""
 
     def __init__(self, url: str) -> None:
         super().__init__(url, name="ieee", expected_document_extension="pdf")
@@ -14,7 +15,7 @@ class Downloader(papis.downloaders.Downloader):
     def match(cls, url: str) -> Optional[papis.downloaders.Downloader]:
         m = re.match(r"^ieee:(.*)", url, re.IGNORECASE)
         if m:
-            url = "https://ieeexplore.ieee.org/document/{}".format(m.group(1))
+            url = f"https://ieeexplore.ieee.org/document/{m.group(1)}"
             return Downloader(url)
         if re.match(r".*ieee.org.*", url):
             url = re.sub(r"\.pdf.*$", "", url)

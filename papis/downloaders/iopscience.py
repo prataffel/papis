@@ -5,6 +5,8 @@ import papis.downloaders.base
 
 
 class Downloader(papis.downloaders.Downloader):
+    """Retrieve documents from `IOPscience <https://iopscience.iop.org>`__"""
+
     DOCUMENT_URL: ClassVar[str] = (
         "https://iopscience.iop.org/article/{doi}/pdf"
         )
@@ -69,7 +71,7 @@ class Downloader(papis.downloaders.Downloader):
 
         abstract_nodes = soup.find_all("div", attrs={"class": "wd-jnl-art-abstract"})
         if abstract_nodes:
-            data["abstract"] = " ".join(a.text for a in abstract_nodes)
+            data["abstract"] = " ".join(a.text for a in abstract_nodes).strip()
 
         date = data.get("date")
         if date is not None:

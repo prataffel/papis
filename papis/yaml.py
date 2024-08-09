@@ -105,9 +105,7 @@ def yaml_to_list(yaml_path: str,
 
 
 def exporter(documents: List[papis.document.Document]) -> str:
-    """
-    Returns a YAML string containing all documents in the input list.
-    """
+    """Convert document to the YAML format"""
     string = yaml.dump_all(
         [papis.document.to_dict(document) for document in documents],
         allow_unicode=True)
@@ -115,7 +113,7 @@ def exporter(documents: List[papis.document.Document]) -> str:
     return str(string)
 
 
-@click.command("yaml")                  # type: ignore[arg-type]
+@click.command("yaml")
 @click.pass_context
 @click.argument("yamlfile", type=click.Path(exists=True))
 @click.help_option("--help", "-h")

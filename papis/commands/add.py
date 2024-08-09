@@ -1,6 +1,7 @@
 """
-The ``add`` command is one of the central commands of the papis command-line
-interface. It is a very versatile command with a fair amount of options.
+The ``add`` command is one of the central commands of the ``papis``
+command-line interface It is a very versatile command with a fair amount of
+options.
 
 There are also a few customization settings available for this command, which
 are described on the :ref:`configuration page <add-command-options>` for add.
@@ -44,14 +45,14 @@ Examples
             --from arxiv https://arxiv.org/abs/1712.03134
 
 - If you do not want copy the original PDFs into the library, you can
-  also tell papis to just create a link to them, for example
+  also tell Papis to just create a link to them, for example
 
     .. code:: sh
 
         papis add --link ~/Documents/interesting.pdf \\
             --from doi 10.10763/1.3237134
 
-  will add an entry into the papis library, but the PDF document will remain
+  will add an entry into the Papis library, but the PDF document will remain
   at ``~/Documents/interesting.pdf``. In the document's folder
   there will be a link to ``~/Documents/interesting.pdf`` instead of the
   file itself. Of course you always have to be sure that the
@@ -60,7 +61,7 @@ Examples
 
 - Papis also tries to make sense of the inputs that you have passed
   on the command-line. For instance you could provide only a DOI and
-  papis will figure out if this is indeed a DOI and download available metadata
+  Papis will figure out if this is indeed a DOI and download available metadata
   using Crossref. For example, you can try
 
     .. code:: sh
@@ -80,6 +81,19 @@ Examples
   in the document's main folder with a list of citations. You can check out
   the ``papis citations`` command for more advanced usage.
 
+- BibTeX can be imported directly as a string, or read from a local file or
+  from a remote URL. The following all work:
+
+    .. code:: sh
+
+        papis add --from bibtex someFile.bib
+        papis add --from bibtex "https://example.com/someFile.bib"
+        papis add --from bibtex "@book{someReference,
+            author = {John Doe},
+            ...more fields...
+            }"
+        papis add --from bibtex "$(xclip -o)"
+
 Command-line Interface
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -88,14 +102,15 @@ Command-line Interface
 """
 
 import os
-import re
 from typing import List, Any, Optional, Dict, Tuple
+from warnings import warn
 
 import click
 
 import papis.api
 import papis.pick
 import papis.utils
+import papis.hooks
 import papis.tui.utils
 import papis.filetype
 import papis.config
@@ -109,6 +124,8 @@ import papis.format
 import papis.citations
 import papis.id
 import papis.logging
+import papis.commands.doctor
+
 
 logger = papis.logging.get_logger(__name__)
 
@@ -135,7 +152,7 @@ class FromFolderImporter(papis.importer.Importer):
 
 class FromLibImporter(papis.importer.Importer):
 
-    """Importer that queries a valid papis library (also paths) and adds files
+    """Importer that queries a valid Papis library (also paths) and adds files
     and data
     """
 
@@ -162,96 +179,35 @@ class FromLibImporter(papis.importer.Importer):
 
 
 def get_file_name(
-        data: Dict[str, Any],
+        doc: papis.document.Document,
         original_filepath: str,
-        suffix: str = "") -> str:
-    """Generates file name for the document
+        suffix: str = "",
+        base_name_limit: int = 150) -> str:
+    warn("'get_file_name' is deprecated and will be removed in the next "
+         "version. Use 'papis.paths.get_document_file_name' instead.",
+         DeprecationWarning, stacklevel=2)
 
-    :param data: Data parsed for the actual document
-    :param original_filepath: The full path to the original file
-    :param suffix: Possible suffix to be appended to the file without
-        its extension.
-    :returns: New file name
-    """
-
-    basename_limit = 150
-    file_name_opt = papis.config.get("add-file-name")
-    ext = papis.filetype.get_document_extension(original_filepath)
-
-    if file_name_opt is None:
-        file_name_opt = os.path.basename(original_filepath)
-
-    # Get a file name from the format `add-file-name`
-    file_name_base = papis.format.format(
-        file_name_opt, papis.document.from_data(data),
-        default=os.path.basename(original_filepath)
-    )
-
-    if len(file_name_base) > basename_limit:
-        logger.warning(
-            "Shortening file name for portability: '%s'.", file_name_base)
-        file_name_base = file_name_base[0:basename_limit]
-
-    # Remove extension from file_name_base, if any
-    file_name_base = re.sub(
-        r"([.]{})?$".format(ext),
-        "",
-        file_name_base
-    )
-
-    # Adding some extra suffixes, if any, and cleaning up document name
-    filename_basename = papis.utils.clean_document_name(
-        "{}{}".format(
-            file_name_base,
-            "-" + suffix if suffix else ""
-        )
-    )
-
-    # Adding the recognised extension
-    return "{}.{}".format(filename_basename, ext)
+    from papis.paths import get_document_file_name
+    return get_document_file_name(doc, original_filepath, suffix,
+                                  base_name_limit=base_name_limit)
 
 
 def get_hash_folder(data: Dict[str, Any], document_paths: List[str]) -> str:
-    """Folder name where the document will be stored.
+    warn("'get_hash_folder' is deprecated and will be removed in the next "
+         "version. Use 'papis.paths.get_document_hash_folder' instead.",
+         DeprecationWarning, stacklevel=2)
 
-    :data: Data parsed for the actual document
-    :document_paths: Path of the document
-
-    """
-    import random
-    author = "-{:.20}".format(data["author"]) if "author" in data else ""
-
-    document_strings = b""
-    for docpath in document_paths:
-        with open(docpath, "rb") as fd:
-            document_strings += fd.read(2000)
-
-    import hashlib
-    md5 = hashlib.md5(
-        "".join(document_paths).encode()
-        + str(data).encode()
-        + str(random.random()).encode()
-        + document_strings
-    ).hexdigest()
-
-    result = md5 + author
-    result = papis.utils.clean_document_name(result)
-
-    return result
+    from papis.paths import get_document_hash_folder
+    return get_document_hash_folder(data, document_paths)
 
 
 def ensure_new_folder(path: str) -> str:
-    if not os.path.exists(path):
-        return path
+    warn("'ensure_new_folder' is deprecated and will be removed in the next "
+         "version. Use 'papis.paths.get_document_unique_folder' instead.",
+         DeprecationWarning, stacklevel=2)
 
-    from string import ascii_lowercase
-    suffix = papis.utils.create_identifier(ascii_lowercase)
-
-    new_path = path
-    while os.path.exists(new_path):
-        new_path = "{}-{}".format(path, next(suffix))
-
-    return new_path
+    from papis.paths import _make_unique_folder
+    return _make_unique_folder(path)
 
 
 def run(paths: List[str],
@@ -260,12 +216,15 @@ def run(paths: List[str],
         file_name: Optional[str] = None,
         subfolder: Optional[str] = None,
         base_path: Optional[str] = None,
+        batch: bool = False,
         confirm: bool = False,
         open_file: bool = False,
         edit: bool = False,
         git: bool = False,
         link: bool = False,
-        citations: Optional[papis.citations.Citations] = None) -> None:
+        move: bool = False,
+        citations: Optional[papis.citations.Citations] = None,
+        auto_doctor: bool = False) -> None:
     """
     :param paths: Paths to the documents to be added
     :param data: Data for the document to be added.
@@ -289,25 +248,16 @@ def run(paths: List[str],
     if citations is None:
         citations = []
 
+    for p in paths:
+        if not os.path.exists(p):
+            raise FileNotFoundError(f"File '{p}' not found")
+
     import tempfile
 
-    # The real paths of the documents to be added
     in_documents_paths = paths
-    # The basenames of the documents to be added
-    in_documents_names = []
-    # The folder name of the temporary document to be created
     temp_dir = tempfile.mkdtemp()
-
-    for p in in_documents_paths:
-        if not os.path.exists(p):
-            raise FileNotFoundError("File '{}' not found".format(p))
-
-    in_documents_names = [
-        papis.utils.clean_document_name(doc_path)
-        for doc_path in in_documents_paths
-    ]
-
-    tmp_document = papis.document.Document(temp_dir)
+    tmp_document = papis.document.Document(folder=temp_dir, data=data)
+    papis.database.get().maybe_compute_id(tmp_document)
 
     # reference building
     # NOTE: this needs to go before any papis.format calls, so that those can
@@ -316,7 +266,12 @@ def run(paths: List[str],
         new_ref = papis.bibtex.create_reference(data)
         if new_ref:
             logger.info("Created reference '%s'.", new_ref)
-            data["ref"] = new_ref
+            tmp_document["ref"] = new_ref
+
+    if auto_doctor:
+        logger.info("Running doctor auto-fixers on document: '%s'.",
+                    papis.document.describe(tmp_document))
+        papis.commands.doctor.fix_errors(tmp_document)
 
     if base_path is None:
         base_path = os.path.expanduser(papis.config.get_lib_dirs()[0])
@@ -324,103 +279,45 @@ def run(paths: List[str],
     if subfolder:
         base_path = os.path.join(base_path, subfolder)
 
-    base_path = os.path.normpath(base_path)
-    out_folder_path = base_path
+    import shutil
+    from papis.paths import symlink, unique_suffixes
+    from papis.paths import get_document_file_name, get_document_unique_folder
 
-    if folder_name:
-        temp_doc = papis.document.Document(data=data)
-        temp_path = os.path.join(out_folder_path, folder_name)
-        components: List[str] = []
-
-        temp_path = os.path.normpath(temp_path)
-        out_folder_path = os.path.normpath(out_folder_path)
-
-        while temp_path != out_folder_path and papis.utils.is_relative_to(
-            temp_path, out_folder_path
-        ):
-            path_component = os.path.basename(temp_path)
-
-            formatted = None
-            try:
-                formatted = papis.format.format(path_component, temp_doc)
-            except papis.format.FormatFailedError:
-                out_folder_path = base_path
-                components = []
-                break
-
-            component_cleaned = papis.utils.clean_document_name(formatted)
-            components.insert(0, component_cleaned)
-
-            # continue with parent path component
-            temp_path = os.path.dirname(temp_path)
-
-        del temp_doc
-
-        # components are formatted in reverse order, so we add then now in the
-        # right order to the path
-        out_folder_path = os.path.normpath(os.path.join(out_folder_path, *components))
-
-    if out_folder_path == base_path:
-        if folder_name:
-            logger.error(
-                "Could not produce a folder path from the provided data:\n"
-                "\tdata: %s\n\tfiles: %s",
-                data, in_documents_names)
-
-        logger.info("Constructing an automatic (hashed) folder name.")
-        out_folder_name = get_hash_folder(data, in_documents_paths)
-        out_folder_path = os.path.join(out_folder_path, out_folder_name)
-
-    if not papis.utils.is_relative_to(out_folder_path, base_path):
-        raise ValueError(
-            "Formatting produced a path outside of library: '{}' not relative to '{}'"
-            .format(base_path, out_folder_path))
-
-    if os.path.exists(out_folder_path):
-        out_folder_path = ensure_new_folder(out_folder_path)
-
-    data["files"] = in_documents_names
-
-    logger.info("Document folder is '%s'.", out_folder_path)
-    logger.debug("Document includes files: '%s'.", "', '".join(in_documents_paths))
-
-    # First prepare everything in the temporary directory
-    from string import ascii_lowercase
-    g = papis.utils.create_identifier(ascii_lowercase)
+    g = unique_suffixes()
     string_append = ""
-    if file_name is not None:  # Use args if set
-        papis.config.set("add-file-name", file_name)
+
     new_file_list = []
-
     for in_file_path in in_documents_paths:
-
-        # Rename the file in the staging area
-        new_filename = papis.utils.clean_document_name(
-            get_file_name(
-                data,
-                in_file_path,
-                suffix=string_append))
+        new_filename = get_document_file_name(
+            tmp_document, in_file_path,
+            suffix=string_append,
+            file_name_format=file_name)
         new_file_list.append(new_filename)
 
-        tmp_end_filepath = os.path.join(
-            temp_dir,
-            new_filename)
+        tmp_end_filepath = os.path.join(temp_dir, new_filename)
         string_append = next(g)
 
         if link:
             in_file_abspath = os.path.abspath(in_file_path)
-            logger.debug("[SYMLINK] '%s' to '%s'.", in_file_abspath, tmp_end_filepath)
-            os.symlink(in_file_abspath, tmp_end_filepath)
+            logger.info("[SYMLINK] '%s' to '%s'.", in_file_abspath, tmp_end_filepath)
+            symlink(in_file_abspath, tmp_end_filepath)
+        elif move:
+            logger.info("[MV] '%s' to '%s'.", in_file_path, tmp_end_filepath)
+            shutil.copy(in_file_path, tmp_end_filepath)
         else:
-            logger.debug("[CP] '%s' to '%s'.", in_file_path, tmp_end_filepath)
-
-            import shutil
+            logger.info("[CP] '%s' to '%s'.", in_file_path, tmp_end_filepath)
             shutil.copy(in_file_path, tmp_end_filepath)
 
-    data["files"] = new_file_list
-
-    tmp_document.update(data)
+    tmp_document["files"] = new_file_list
     tmp_document.save()
+
+    base_path = os.path.normpath(base_path)
+    out_folder_path = get_document_unique_folder(
+        tmp_document, base_path,
+        folder_name_format=folder_name)
+
+    logger.info("Document folder is '%s'.", out_folder_path)
+    logger.debug("Document includes files: '%s'.", "', '".join(in_documents_paths))
 
     # Check if the user wants to edit before submitting the doc
     # to the library
@@ -430,55 +327,81 @@ def run(paths: List[str],
         logger.debug("Loading the changes made by editing.")
         tmp_document.load()
 
+    papis.hooks.run("on_add_done", tmp_document)
+
     # Duplication checking
     logger.info("Checking if this document is already in the library. "
                 "This uses the keys ['%s'] to determine uniqueness.",
                 "', '".join(papis.config.getlist("unique-document-keys"))
                 )
 
+    has_duplicate = False
     try:
         found_document = papis.utils.locate_document_in_lib(tmp_document)
     except IndexError:
         logger.info("No document matching the new metadata found in the '%s' library.",
                     papis.config.get_lib_name())
     else:
-        click.echo("The following document is already in your library:")
         papis.tui.utils.text_area(papis.document.dump(found_document),
+                                  title="This document is already in your library",
                                   lexer_name="yaml")
 
         logger.warning("Duplication Warning")
         logger.warning(
             "A document (shown above) in the '%s' library seems to match the "
             "one to be added.", papis.config.get_lib())
+
+        if batch:
+            logger.warning(
+                "No new document is created! Add this document in "
+                "interactive mode (no '--batch') or use 'papis update' instead.")
+            return
+
         logger.warning(
             "Hint: Use the 'papis update' command instead to update the "
             "existing document.")
 
         # NOTE: we always want the user to confirm if a duplicate is found!
         confirm = True
+        has_duplicate = True
 
     if citations:
         papis.citations.save_citations(tmp_document, citations)
 
+    if not batch and confirm:
+        dup_text = " (duplicate) " if has_duplicate else " "
+        papis.tui.utils.text_area(
+            papis.document.dump(tmp_document),
+            title=f"This{dup_text}document will be added to your library",
+            lexer_name="yaml")
+
     if open_file:
         for d_path in tmp_document.get_files():
             papis.utils.open_file(d_path)
+
     if confirm:
         if not papis.tui.utils.confirm("Do you want to add the new document?"):
             return
 
     logger.info("[MV] '%s' to '%s'.", tmp_document.get_main_folder(), out_folder_path)
-
-    # This also sets the folder of tmp_document
     papis.document.move(tmp_document, out_folder_path)
+
     papis.database.get().add(tmp_document)
+
     if git:
         papis.git.add_and_commit_resource(
             str(tmp_document.get_main_folder()), ".",
             "Add document '{}'".format(papis.document.describe(tmp_document)))
 
+    if move:
+        for in_file_path in in_documents_paths:
+            try:
+                os.remove(in_file_path)
+            except Exception as exc:
+                logger.error("Failed to move file: '%s'.", in_file_path, exc_info=exc)
 
-@click.command(                         # type: ignore[arg-type]
+
+@click.command(
     "add",
     help="Add a document into a given library"
 )
@@ -493,11 +416,9 @@ def run(paths: List[str],
     "-d", "--subfolder",
     help="Subfolder in the library",
     default=lambda: papis.config.getstring("add-subfolder"))
-@click.option(
+@papis.cli.bool_flag(
     "-p", "--pick-subfolder",
-    help="Pick from existing subfolders",
-    is_flag=True,
-    default=False)
+    help="Pick from existing subfolders")
 @click.option(
     "--folder-name",
     help="Name for the document's folder (papis format)",
@@ -515,42 +436,44 @@ def run(paths: List[str],
     nargs=2,
     multiple=True,
     default=(),)
-@click.option(
+@papis.cli.bool_flag(
     "-b", "--batch",
-    help="Batch mode, do not prompt or otherwise",
-    default=False, is_flag=True)
-@click.option(
+    help="Batch mode, do not prompt or otherwise")
+@papis.cli.bool_flag(
     "--confirm/--no-confirm",
     help="Ask to confirm before adding to the collection",
-    default=lambda: True if papis.config.get("add-confirm") else False)
-@click.option(
+    default=lambda: papis.config.getboolean("add-confirm"))
+@papis.cli.bool_flag(
     "--open/--no-open", "open_file",
     help="Open file before adding document",
-    default=lambda: True if papis.config.get("add-open") else False)
-@click.option(
+    default=lambda: papis.config.getboolean("add-open"))
+@papis.cli.bool_flag(
     "--edit/--no-edit",
     help="Edit info file before adding document",
-    default=lambda: True if papis.config.get("add-edit") else False)
-@click.option(
+    default=lambda: papis.config.getboolean("add-edit"))
+@papis.cli.bool_flag(
     "--link/--no-link",
     help="Instead of copying the file to the library, create a link to "
          "its original location",
     default=False)
+@papis.cli.bool_flag(
+    "--move/--no-move",
+    help="Instead of copying the file to the library, "
+         "move it from its original location",
+    default=False)
+@papis.cli.bool_flag(
+    "--auto-doctor/--no-auto-doctor",
+    help="Apply papis doctor to newly added documents.",
+    default=lambda: papis.config.getboolean("auto-doctor"))
 @papis.cli.git_option(help="Git add and commit the new document")
-@click.option(
-    "--list-importers", "--li", "list_importers",
-    help="List all available papis importers",
-    default=False,
-    is_flag=True)
-@click.option(
-    "--force-download", "--fd", "force_download",
-    help="Download file with importer even if local file is passed",
-    default=False,
-    is_flag=True)
-@click.option("--fetch-citations",
-              help="Fetch citations from doi",
-              default=lambda: papis.config.getboolean("add-fetch-citations"),
-              is_flag=True)
+@papis.cli.bool_flag(
+    "--download-files/--no-download-files",
+    help="Download file with importer if available or not",
+    default=lambda: papis.config.getboolean("add-download-files"))
+@papis.cli.bool_flag(
+    "--fetch-citations/--no-fetch-citations",
+    help="Fetch citations from a DOI (Digital Object Identifier)",
+    default=lambda: papis.config.getboolean("add-fetch-citations"))
 def cli(files: List[str],
         set_list: List[Tuple[str, str]],
         subfolder: str,
@@ -562,46 +485,32 @@ def cli(files: List[str],
         confirm: bool,
         open_file: bool,
         edit: bool,
+        auto_doctor: bool,
         git: bool,
         link: bool,
-        list_importers: bool,
-        force_download: bool,
+        move: bool,
+        download_files: bool,
         fetch_citations: bool) -> None:
     """
     Command line interface for papis-add.
     """
-
-    if list_importers:
-        mgr = papis.importer.get_import_mgr()
-        click.echo("\n".join(papis.utils.dump_object_doc([
-            (name, mgr[name].plugin) for name in mgr.names()
-            ], sep="\n    ")))
-
-        return
-
-    data = {}
-    for data_set in set_list:
-        data[data_set[0]] = data_set[1]
-
-    ctx = papis.importer.Context()
-    ctx.files = [f for f in files if os.path.exists(f)]
-    ctx.data.update(data)
 
     if batch:
         edit = False
         confirm = False
         open_file = False
 
-    only_data = bool(ctx.files) and not force_download
+    # gather importers / downloaders
     matching_importers = papis.utils.get_matching_importer_by_name(
-        from_importer, only_data=only_data)
+        from_importer, download_files=download_files)
 
-    if not from_importer and not batch and files:
+    if not from_importer and files:
         matching_importers = sum((
-            papis.utils.get_matching_importer_or_downloader(f, only_data=only_data)
+            papis.utils.get_matching_importer_or_downloader(
+                f, download_files=download_files)
             for f in files), [])
 
-        if matching_importers:
+        if matching_importers and not batch:
             logger.info("These importers where automatically matched. "
                         "Select the ones you want to use.")
 
@@ -614,10 +523,22 @@ def cli(files: List[str],
 
             matching_importers = [matching_importers[i] for i in matching_indices]
 
+    # merge importer data + commandline data into a single set
     imported = papis.utils.collect_importer_data(
-        matching_importers, batch=batch, only_data=only_data)
-    ctx.data.update(imported.data)
-    ctx.files.extend(imported.files)
+        matching_importers, batch=batch, use_files=download_files)
+
+    ctx = papis.importer.Context()
+    ctx.data = imported.data
+    ctx.files = [f for f in files if os.path.exists(f)] + imported.files
+
+    if set_list:
+        if batch or not ctx.data:
+            ctx.data.update(set_list)
+        else:
+            papis.utils.update_doc_from_data_interactively(
+                ctx.data,
+                dict(set_list),
+                "command-line")
 
     if not ctx:
         logger.error("No document is created, since no data or files have been "
@@ -651,9 +572,12 @@ def cli(files: List[str],
         file_name=file_name,
         subfolder=subfolder,
         base_path=base_path,
+        batch=batch,
         confirm=confirm,
         open_file=open_file,
         edit=edit,
         git=git,
         link=link,
-        citations=citations)
+        move=move,
+        citations=citations,
+        auto_doctor=auto_doctor)

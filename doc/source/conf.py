@@ -9,11 +9,9 @@
 
 import os
 import sys
-import papis
-import docutils
 
-from docutils.parsers.rst import Directive
-from sphinx_click.ext import ClickDirective
+import papis
+from papis.sphinx_ext import make_link_resolve
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -30,91 +28,34 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.doctest",
-    "sphinx.ext.todo",
-    "sphinx.ext.coverage",
-    "sphinx.ext.ifconfig",
-    "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.inheritance_diagram",
+    "sphinx.ext.todo",
+    "sphinx.ext.linkcode",
     "sphinx_click.ext",
+    "papis.sphinx_ext",
 ]
 
 intersphinx_mapping = {
     # NOTE: docs on main seem to be broken at the moment (2023-06-04)
+    "beautifulsoup4": ("https://www.crummy.com/software/BeautifulSoup/bs4/doc/", None),
     "bibtexparser": ("https://bibtexparser.readthedocs.io/en/v1.4.0", None),
     "click": ("https://click.palletsprojects.com/en/latest", None),
     "prompt_toolkit": ("https://python-prompt-toolkit.readthedocs.io/en/master", None),
     "pyparsing": ("https://pyparsing-docs.readthedocs.io/en/latest", None),
+    "pytest": ("https://docs.pytest.org/en/latest", None),
     "python": ("https://docs.python.org/3", None),
     "requests": ("https://requests.readthedocs.io/en/latest", None),
     "stevedore": ("https://docs.openstack.org/stevedore/latest", None),
 }
 
+linkcode_resolve = make_link_resolve("https://github.com/papis/papis", "main")
+
 autodoc_member_order = "bysource"
 
+nitpick_ignore_regex = [
+    ["py:class", r".*SubRequest"],
+    ]
 
-# Exec directive {{{
-
-class CustomClickDirective(ClickDirective):
-    def run(self):
-        sections = super().run()
-
-        # NOTE: just remove the title section so we can add our own
-        return sections[0].children[1:]
-
-
-class PapisConfig(Directive):
-    has_content = True
-    optional_arguments = 3
-    required_arguments = 1
-    option_spec = {"default": str, "section": str, "description": str}
-    add_index = True
-
-    def run(self):
-        from papis.config import get_general_settings_name, get_default_settings
-        key = self.arguments[0]
-        section = self.options.get(
-            "section",
-            get_general_settings_name())
-        default = self.options.get(
-            "default",
-            get_default_settings().get(section, {}).get(key, "<missing>"))
-
-        lines = []
-        lines.append("")
-        lines.append(".. _config-{section}-{key}:".format(section=section, key=key))
-        lines.append("")
-        lines.append("`{key} <#config-{section}-{key}>`__"
-                     .format(section=section, key=key))
-
-        if "\n" in str(default):
-            lines.append("    - **Default**: ")
-            lines.append("        .. code::")
-            lines.append("")
-            for lindef in default.split("\n"):
-                lines.append(3 * "    " + lindef)
-        else:
-            lines.append("    - **Default**: ``{value!r}``"
-                         .format(value=default))
-        lines.append("")
-
-        view = docutils.statemachine.ViewList(lines)
-        self.content = view + self.content
-
-        node = docutils.nodes.paragraph()
-        node.document = self.state.document
-        self.state.nested_parse(self.content, self.content_offset, node)
-
-        return node.children
-
-
-def setup(app):
-    app.add_directive("click", CustomClickDirective, override=True)
-    app.add_directive("papis-config", PapisConfig)
-
-
-# }}} Exec directive #
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -129,8 +70,8 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = "papis"
-copyright = "2017, Alejandro Gallo"
+project = papis.__name__
+copyright = "2017 {}".format(papis.__author__)
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -155,7 +96,6 @@ release = version
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns = [
-    "commands/*.rst",
     "default-settings.rst",
 ]
 
@@ -192,7 +132,9 @@ html_theme = "sphinx_rtd_theme"
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-# html_theme_options = {}
+html_theme_options = {
+    'logo_only': True,
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -206,7 +148,7 @@ html_theme = "sphinx_rtd_theme"
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-# html_logo = None
+html_logo = "../../resources/logo-wordmark-light.svg"
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -284,7 +226,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    ("index", "papis.tex", "papis Documentation", "Alejandro Gallo", "manual"),
+    ("index", "{}.tex".format(project), "{} Documentation".format(project),
+     papis.__author__, "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -312,43 +255,25 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ("index", "papis", "Papis Documentation",
-     ["Alejandro Gallo"], 1),
-    ("configuration", "papis-config", "Papis Configuration",
-     ["Alejandro Gallo"], 1),
-    ("commands/add", "papis-add", "add command",
-     ["Alejandro Gallo"], 1),
-    ("commands/addto", "papis-addto", "addto command",
-     ["Alejandro Gallo"], 1),
-    ("commands/browse", "papis-browse", "browse command",
-     ["Alejandro Gallo"], 1),
-    ("commands/config", "papis-config", "config command",
-     ["Alejandro Gallo"], 1),
-    ("commands/default", "papis-default", "default command",
-     ["Alejandro Gallo"], 1),
-    ("commands/edit", "papis-edit", "edit command",
-     ["Alejandro Gallo"], 1),
-    ("commands/explore", "papis-explore", "explore command",
-     ["Alejandro Gallo"], 1),
-    ("commands/export", "papis-export", "export command",
-     ["Alejandro Gallo"], 1),
-    ("commands/git", "papis-git", "git command",
-     ["Alejandro Gallo"], 1),
-    ("commands/list", "papis-list", "list command",
-     ["Alejandro Gallo"], 1),
-    ("commands/mv", "papis-mv", "mv command",
-     ["Alejandro Gallo"], 1),
-    ("commands/open", "papis-open", "open command",
-     ["Alejandro Gallo"], 1),
-    ("commands/rename", "papis-rename", "rename command",
-     ["Alejandro Gallo"], 1),
-    ("commands/rm", "papis-rm", "rm command",
-     ["Alejandro Gallo"], 1),
-    ("commands/run", "papis-run", "run command",
-     ["Alejandro Gallo"], 1),
-    ("commands/update", "papis-update", "update command",
-     ["Alejandro Gallo"], 1),
+    ("configuration", "papis-config-settings", "Papis configuration",
+     [papis.__author__], 1),
+    ("library_structure", "papis-library-structure", "Papis library structure",
+     [papis.__author__], 1),
+    ("info_file", "papis-info-file", "Papis info.yaml file",
+     [papis.__author__], 1),
+    ("database_structure", "papis-database-structure", "Papis database structure",
+     [papis.__author__], 1),
 ]
+
+for entry in os.scandir("commands"):
+    name, _ = entry.name.split(".")
+    man_pages.append((
+        "commands/{}".format(name),
+        "papis-{}".format(name),
+        "{} command".format(name),
+        [papis.__author__],
+        1,
+        ))
 
 # If true, show URL addresses after external links.
 # man_show_urls = False
@@ -359,8 +284,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    ("index", "papis", "papis Documentation",
-     "Alejandro Gallo", "papis", "One line description of project.",
+    ("index", project, "{} Documentation".format(project),
+     papis.__author__, project, "One line description of project.",
      "Miscellaneous"),
 ]
 
@@ -379,9 +304,9 @@ texinfo_documents = [
 # -- Options for Epub output {{{1 --------------------------------------------
 
 # Bibliographic Dublin Core info.
-epub_title = "papis"
-epub_author = "Alejandro Gallo"
-epub_publisher = "Alejandro Gallo"
-epub_copyright = "2017, Alejandro Gallo"
+epub_title = project
+epub_author = papis.__author__
+epub_publisher = papis.__author__
+epub_copyright = copyright
 # A list of files that should not be packed into the epub file.
 epub_exclude_files = ["search.html"]

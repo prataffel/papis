@@ -27,8 +27,8 @@ class ParseResult(NamedTuple):
     doc_key: Optional[str]
 
     def __repr__(self) -> str:
-        doc_key = "{!r}, ".format(self.doc_key) if self.doc_key is not None else ""
-        return "[{}{!r}]".format(doc_key, self.search)
+        doc_key = f"{self.doc_key!r}, " if self.doc_key is not None else ""
+        return f"[{doc_key}{self.search!r}]"
 
 
 class MatcherCallable(Protocol):
@@ -86,9 +86,9 @@ class DocMatcher:
     #: A :class:`MatcherCallable` used to match the document to the
     #: :attr:`parsed_search`.
     matcher: ClassVar[Optional[MatcherCallable]] = None
-    #: A format string (defaulting to :ref:`config-settings-match-format`) used
+    #: A format string (defaulting to :confval:`match-format`) used
     #: to match the parsed search results if no document key is present.
-    match_format: ClassVar[str] = papis.config.getstring("match-format")
+    match_format: ClassVar[str] = ""
 
     @classmethod
     def return_if_match(
@@ -110,7 +110,7 @@ class DocMatcher:
             >>> DocMatcher.return_if_match(doc) is not None
             True
 
-        :param doc: a papis document to match against.
+        :param doc: a Papis document to match against.
         """
 
         match = None
@@ -135,6 +135,7 @@ class DocMatcher:
             >>> DocMatcher.search
             'author:Hummel'
         """
+
         cls.search = search
 
     @classmethod
@@ -169,7 +170,10 @@ class DocMatcher:
         """
         if search is None:
             search = cls.search
+
+        cls.match_format = papis.config.getstring("match-format")
         cls.parsed_search = parse_query(search)
+
         return cls.parsed_search
 
 
@@ -193,7 +197,7 @@ def get_regex_from_search(search: str) -> Pattern[str]:
 def parse_query(query_string: str) -> List[ParseResult]:
     """Parse a query string using :mod:`pyparsing`.
 
-    The query language implemented by this function for papis supports strings
+    The query language implemented by this function for Papis supports strings
     of the form::
 
         'hello author : Einstein    title: "Fancy Title: Part 1" tags'

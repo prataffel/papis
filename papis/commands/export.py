@@ -50,7 +50,7 @@ Command-line Interface
 """
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import click
 
@@ -67,39 +67,36 @@ from papis.exceptions import DocumentFolderNotFound
 
 logger = papis.logging.get_logger(__name__)
 
+#: The entry point name for exporter plugins.
+EXPORTER_EXTENSION_NAME = "papis.exporter"
+
 
 def available_formats() -> List[str]:
-    return papis.plugin.get_available_entrypoints(_extension_name())
-
-
-def _extension_name() -> str:
-    return "papis.exporter"
+    return papis.plugin.get_available_entrypoints(EXPORTER_EXTENSION_NAME)
 
 
 def run(documents: List[papis.document.Document], to_format: str) -> str:
     """
     Exports several documents into something else.
 
-    :param documents: A list of papis documents
+    :param documents: A list of Papis documents
     :param to_format: what format to use
     """
     ret_string = (
-        papis.plugin.get_extension_manager(_extension_name())[to_format]
+        papis.plugin.get_extension_manager(EXPORTER_EXTENSION_NAME)[to_format]
         .plugin(document for document in documents))
     return str(ret_string)
 
 
-@click.command("export")                # type: ignore[arg-type]
+@click.command("export")
 @click.help_option("--help", "-h")
 @papis.cli.query_argument()
 @papis.cli.doc_folder_option()
 @papis.cli.sort_option()
 @papis.cli.all_option()
-@click.option(
+@papis.cli.bool_flag(
     "--folder",
-    help="Export document folder to share",
-    default=False,
-    is_flag=True)
+    help="Export document folder to share")
 @click.option(
     "-o",
     "--out",
@@ -112,7 +109,7 @@ def run(documents: List[papis.document.Document], to_format: str) -> str:
     type=click.Choice(available_formats()),
     default="bibtex",)
 def cli(query: str,
-        doc_folder: str,
+        doc_folder: Tuple[str, ...],
         sort_field: Optional[str],
         sort_reverse: bool,
         folder: str,
@@ -166,7 +163,7 @@ def cli(query: str,
             shutil.copytree(_doc_folder, outdir)
 
 
-@click.command("export")                # type: ignore[arg-type]
+@click.command("export")
 @click.pass_context
 @click.help_option("--help", "-h")
 @click.option(

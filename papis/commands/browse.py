@@ -7,14 +7,14 @@ to open it in a browser.  Also if it has a ``doc_url`` key, or a DOI, it will tr
 to compose URLs out of these to open it.
 
 If none of the above work, then it will try to use a search engine with the
-document's information (using the :ref:`config-settings-browse-query-format`
+document's information (using the :confval:`browse-query-format`
 configuration option).  You can select which search engine you want to use
-with the :ref:`config-settings-search-engine` setting.
+with the :confval:`search-engine` setting.
 
 Examples
 ^^^^^^^^
 
-By default, it will use the configuration option :ref:`config-settings-browse-key`
+By default, it will use the configuration option :confval:`browse-key`
 to try and form an URL to browse. You can bypass this option using the ``-k``
 flag issuing the command
 
@@ -61,7 +61,7 @@ Command-line Interface
     :prog: papis browse
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 
@@ -89,6 +89,14 @@ def run(document: papis.document.Document,
     key = papis.config.getstring("browse-key")
 
     try:
+        if "auto" == key:
+            if document["url"]:
+                key = "url"
+            elif document["doi"]:
+                key = "doi"
+            elif document["isbn"]:
+                key = "isbn"
+
         if "doi" == key:
             url = "https://doi.org/{}".format(document["doi"])
         elif "ads" == key:
@@ -129,15 +137,16 @@ def run(document: papis.document.Document,
 @click.option("-k", "--key", default="",
               help="Use the value of the document's key to open in"
                    " the browser, e.g. doi, url, doc_url ...")
-@click.option("-n", "--print", "_print", default=False, is_flag=True,
-              help="Just print out the url, do not open it with browser")
+@papis.cli.bool_flag(
+    "-n", "--print", "_print",
+    help="Just print out the url, do not open it with browser")
 @papis.cli.all_option()
 @papis.cli.doc_folder_option()
 def cli(query: str,
         key: str,
         _all: bool,
         _print: bool,
-        doc_folder: str,
+        doc_folder: Tuple[str, ...],
         sort_field: Optional[str],
         sort_reverse: bool) -> None:
     """Open document's url in a browser"""

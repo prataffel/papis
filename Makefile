@@ -1,3 +1,6 @@
+PYTHON?=python -X dev
+NIX?=nix --extra-experimental-features nix-command --extra-experimental-features flakes
+
 all: help
 
 help: 								## Show this help
@@ -6,9 +9,9 @@ help: 								## Show this help
 	@echo ""
 .PHONY: help
 
-shell_completion:					## Generate shell completion scripts
+shell-completion:					## Generate shell completion scripts
 	make -C scripts/shell_completion
-.PHONY: shell_completion
+.PHONY: shell-completion
 
 update-authors:						## Generate AUTHORS file from git commits
 	git shortlog -s -e -n | \
@@ -28,20 +31,56 @@ tags:								## Generate ctags for main codebase
 .PHONY: tags
 
 doc:								## Generate the documentation in doc/
-	cd doc && make html SPHINXOPTS="-W --keep-going -n"
+	cd doc && rm -rf build && make html SPHINXOPTS="-W --keep-going -n" || true
 	@echo ""
 	@echo -e "\e[1;32mRun '$$BROWSER doc/build/html/index.html' to see the docs\e[0m"
 	@echo ""
 .PHONY: doc
 
-test:								## Run pytest test and doctests
-	python -m pytest -rswx --cov=papis -v -s papis tests
-.PHONY: test
+pytest:								## Run pytest tests and doctests
+	$(PYTHON) -m pytest papis tests
+.PHONY: pytest
+
+flake8:								## Run flake8 (style checks)
+	$(PYTHON) -m flake8 papis tests examples
+.PHONY: flake8
+
+mypy:								## Run mypy (type annotations)
+	$(PYTHON) -m mypy papis
+.PHONY: mypy
+
+codespell:							## Run codespell (spellchecking)
+	@codespell --summary \
+		--skip build --skip resources --skip data --skip LTWA.json \
+		--uri-ignore-words-list '*' \
+		--ignore-words .codespell-ignore \
+		contrib doc examples papis scripts tests tools
+.PHONY: codespell
 
 ci-install:							## Install dependencies like on the CI
 	bash tools/ci-install.sh
 .PHONY: ci-install
 
 ci-test:							## Run tests like on the CI
-	bash tools/ci-run-tests.sh
+	bash tools/ci-run-test.sh
 .PHONY: ci-test
+
+ci-lint:							## Run linting like on the CI
+	bash tools/ci-run-lint.sh
+.PHONY: ci-lint
+
+nix-build: 							## Build using nix
+	$(NIX) build
+.PHONY: nix-build
+
+nix-update: 						## Update the nix flake.lock file
+	$(NIX) flake update
+.PHONY: nix-update
+
+nix-test: 							## Run the tests within nix
+	$(NIX) develop --command bash -c "source .venv/bin/activate; python -m pytest -v papis tests"
+.PHONY: nix-update
+
+nix-install: 						## Install nix flake to local profile
+	$(NIX) profile install '.#papis'
+.PHONY: nix-install

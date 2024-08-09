@@ -1,11 +1,11 @@
-import re
 import os
 import pytest
+import sys
 
 import papis.config
 import papis.document
 
-from tests.testlib import TemporaryLibrary, PapisRunner
+from papis.testing import TemporaryLibrary, PapisRunner
 
 
 def make_document(name: str, dir: str, nfiles: int = 0) -> papis.document.Document:
@@ -13,7 +13,7 @@ def make_document(name: str, dir: str, nfiles: int = 0) -> papis.document.Docume
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    from tests.testlib import create_random_file
+    from papis.testing import create_random_file
     files = [os.path.basename(create_random_file(dir=folder)) for _ in range(nfiles)]
     data = {
         "author": "Plato",
@@ -29,77 +29,6 @@ def make_document(name: str, dir: str, nfiles: int = 0) -> papis.document.Docume
     doc.save()
 
     return doc
-
-
-def test_get_hash_folder(tmp_library: TemporaryLibrary) -> None:
-    data = {"author": "don quijote de la mancha"}
-    filename = tmp_library.create_random_file()
-
-    from papis.commands.add import get_hash_folder
-    hh = get_hash_folder(data, [filename])
-    assert re.match(r".*-don-quijote-de-la-ma$", hh) is not None
-
-    three_files_hh = get_hash_folder(data, [filename, filename, filename])
-    assert re.match(r".*-don-quijote-de-la-ma$", three_files_hh) is not None
-    assert not three_files_hh == hh
-
-    # Without data
-    no_files_hh = get_hash_folder(data, [])
-    assert re.match(r".*-don-quijote-de-la-ma$", no_files_hh) is not None
-    assert not no_files_hh == hh
-
-    data = {}
-    hh = get_hash_folder(data, [filename])
-    assert re.match(r".*-don-quijote-de-la-ma$", hh) is None
-
-    filename = tmp_library.create_random_file()
-
-    newhh = get_hash_folder(data, [filename])
-    assert not hh == newhh
-
-    newnewhh = get_hash_folder(data, [filename])
-    assert not newnewhh == newhh
-
-
-def test_get_file_name(tmp_library: TemporaryLibrary) -> None:
-    pdf = tmp_library.create_random_file("pdf")
-    path = tmp_library.create_random_file(
-        "text", prefix="papis-get-name-", suffix=".data")
-
-    from papis.commands.add import get_file_name
-
-    assert papis.config.get("add-file-name") is None
-    filename = get_file_name({"title": "blah"}, path, suffix="3")
-    assert re.match(r"^papis-get-name-.*\.data$", filename) is not None
-    # With suffix
-    filename = get_file_name({"title": "blah"}, pdf, suffix="3")
-    assert len(re.split("[.]pdf", filename)) == 2
-    # Without suffix
-    filename = get_file_name({"title": "blah"}, pdf)
-    assert len(re.split("[.]pdf", filename)) == 2
-
-    papis.config.set(
-        "add-file-name",
-        "{doc[title]} {doc[author]} {doc[yeary]}"
-    )
-
-    filename = get_file_name({"title": "blah"}, path, suffix="2")
-    assert filename == "blah-2.data"
-
-    filename = get_file_name({"title": "b" * 200}, path, suffix="2")
-    assert filename == "b" * 150 + "-2.data"
-
-    pdf = tmp_library.create_random_file("pdf")
-    filename = get_file_name({"title": "blah"}, pdf, suffix="2")
-    assert filename == "blah-2.pdf"
-
-    pdf = tmp_library.create_random_file("pdf")
-    filename = get_file_name({"title": "blah"}, pdf, suffix="2")
-    assert filename == "blah-2.pdf"
-
-    yaml = tmp_library.create_random_file("text", suffix=".yaml")
-    filename = get_file_name({"title": "blah"}, yaml, suffix="2")
-    assert filename == "blah-2.yaml"
 
 
 @pytest.mark.library_setup(use_git=True)
@@ -124,7 +53,7 @@ def test_add_run(tmp_library: TemporaryLibrary, nfiles: int = 5) -> None:
         "journal": "International Journal of Quantum Chemistry",
         "language": "en",
         "issue": "15",
-        "title": "How many-body perturbation theory has changed qm ",
+        "title": "How many-body perturbation theory has changed QM",
         "url": "http://doi.wiley.com/10.1002/qua.22384",
         "volume": "109",
         "author": "Kutzelnigg, Werner",
@@ -139,6 +68,37 @@ def test_add_run(tmp_library: TemporaryLibrary, nfiles: int = 5) -> None:
 
     doc, = db.query_dict({"author": "Kutzelnigg"})
     assert len(doc.get_files()) == nfiles
+
+
+def test_add_auto_doctor_run(tmp_library: TemporaryLibrary) -> None:
+    from papis.commands.add import run
+
+    data = {
+        "journal": "International Journal of Quantum Chemistry",
+        "language": "en",
+        "issue": "15",
+        "title": "How many-body perturbation theory has changed QM",
+        "url": "http://doi.wiley.com/10.1002/qua.22384",
+        "volume": "109",
+        "author": "Kutzelnigg, Werner",
+        "type": "article",
+        "doi": "10.1002/qua.22384",
+        "year": "2009",
+        "ref": "#{2FJT2E3A}"
+    }
+    paths = []
+
+    # add document with auto-doctor on
+    papis.config.set("doctor-default-checks", ["keys-missing", "key-type", "refs"])
+    run(paths, data=data, auto_doctor=True)
+
+    # check that all the broken fields are fixed
+    db = papis.database.get()
+    doc, = db.query_dict({"author": "Kutzelnigg"})
+
+    assert doc["author_list"] == [{"given": "Werner", "family": "Kutzelnigg"}]
+    assert isinstance(doc["year"], int) and doc["year"] == 2009
+    assert doc["ref"] == "2FJT2E3A"
 
 
 def test_add_set_cli(tmp_library: TemporaryLibrary) -> None:
@@ -158,6 +118,7 @@ def test_add_set_cli(tmp_library: TemporaryLibrary) -> None:
     assert not doc.get_files()
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="Developer mode not enabled")
 def test_add_link_cli(tmp_library: TemporaryLibrary) -> None:
     from papis.commands.add import cli
     cli_runner = PapisRunner()
@@ -321,6 +282,7 @@ def test_add_lib_cli(tmp_library: TemporaryLibrary,
     with monkeypatch.context() as m:
         m.setattr(papis.utils, "update_doc_from_data_interactively",
                   lambda doc, d, name: doc.update(d))
+        m.setattr(papis.tui.utils, "text_area", lambda *args, **kwargs: None)
         m.setattr(papis.utils, "open_file", lambda x: None)
         m.setattr(papis.tui.utils, "confirm", lambda *args: True)
 

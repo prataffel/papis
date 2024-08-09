@@ -1,5 +1,5 @@
 """
-The ``open`` command is a very important command in the papis workflow.
+The ``open`` command is a very important command in the Papis workflow.
 With it you can open documents, folders or marks.
 
 Marks
@@ -35,7 +35,7 @@ defining a ``marks`` list in a document. Let us look at a concrete example:
 
 This book has defined two marks. Each mark has a name and a value.
 If you tell the ``open`` command to open marks, then it will look for
-the marks and open the value (page number). This is the default behaviour.
+the marks and open the value (page number). This is the default behavior.
 However, if you go to the :ref:`configuration <marks-options>`
 you'll see that you can change the convention to what suits you.
 
@@ -54,7 +54,7 @@ Examples
 
         papis open -d bohm
 
-  The file browser used is given by the :ref:`config-settings-file-browser` setting.
+  The file browser used is given by the :confval:`file-browser` setting.
 
 - Open a mark defined in the info file
 
@@ -70,7 +70,7 @@ Command-line Interface
 """
 
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 
@@ -95,7 +95,7 @@ def run(document: papis.document.Document,
         folder: bool = False,
         mark: bool = False) -> None:
     if opener is not None:
-        papis.config.set("opentool", opener)
+        papis.config.set("opentool", papis.config.escape_interp(opener))
 
     _doc_folder = document.get_main_folder()
     if _doc_folder is None:
@@ -136,7 +136,7 @@ def run(document: papis.document.Document,
                         papis.document.from_data(mark_dict[0]),
                         doc_key=_mark_name)
                     logger.info("Setting opener to '%s'.", opener)
-                    papis.config.set("opentool", opener)
+                    papis.config.set("opentool", papis.config.escape_interp(opener))
         files = document.get_files()
         if not files:
             logger.error("The chosen document has no files attached: '%s'.",
@@ -147,7 +147,7 @@ def run(document: papis.document.Document,
             papis.api.open_file(file_to_open, wait=False)
 
 
-@click.command("open")                  # type: ignore[arg-type]
+@click.command("open")
 @click.help_option("-h", "--help")
 @papis.cli.query_argument()
 @papis.cli.sort_option()
@@ -157,24 +157,19 @@ def run(document: papis.document.Document,
     "--tool",
     help="Tool for opening the file (opentool)",
     default="")
-@click.option(
-    "-d",
-    "--dir",
-    "folder",
-    help="Open directory",
-    default=False,
-    is_flag=True)
-@click.option(
-    "-m",
-    "--mark/--no-mark",
+@papis.cli.bool_flag(
+    "-d", "--dir", "folder",
+    help="Open directory")
+@papis.cli.bool_flag(
+    "-m", "--mark/--no-mark",
     help="Open mark",
     default=lambda: papis.config.getboolean("open-mark"))
-def cli(query: str, doc_folder: str, tool: str, folder: bool,
+def cli(query: str, doc_folder: Tuple[str, ...], tool: str, folder: bool,
         sort_field: Optional[str], sort_reverse: bool, _all: bool,
         mark: bool) -> None:
     """Open document from a given library"""
     if tool:
-        papis.config.set("opentool", tool)
+        papis.config.set("opentool", papis.config.escape_interp(tool))
 
     documents = papis.cli.handle_doc_folder_query_all_sort(query,
                                                            doc_folder,

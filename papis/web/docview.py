@@ -14,6 +14,7 @@ import papis.web.info
 import papis.web.citations
 import papis.web.pdfjs
 import papis.web.djvujs
+import papis.web.epubjs
 
 
 def _click_tab_selector_link_in_url() -> None:
@@ -33,7 +34,7 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
     and maybe in the future to update the information.
     """
     checks = papis.commands.doctor.registered_checks_names()
-    errors = papis.commands.doctor.run(doc, checks)
+    errors = papis.commands.doctor.gather_errors([doc], checks)
     libfolder = papis.config.get_lib_from_name(libname).paths[0]
 
     with papis.web.header.main_html_document(doc["title"]) as result:
@@ -84,7 +85,7 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
                     for i, fpath in enumerate(doc.get_files()):
                         _tab_element(wh.file_icon,
                                      [fpath],
-                                     "#file-tab-{}".format(i))
+                                     f"#file-tab-{i}")
                     _tab_element(wh.icon_span,
                                  ["compress-alt", "Citations"],
                                  "#citations-tab")
@@ -120,10 +121,10 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
                               height=100,
                               style="min-height: 500px",
                               cls="form-control")
-                        _script = """
-                            let bib_editor = ace.edit("{}");
+                        _script = f"""
+                            let bib_editor = ace.edit("{_bibtex_id}");
                             bib_editor.session.setMode("ace/mode/bibtex");
-                        """.format(_bibtex_id)
+                        """
                         t.script(tu.raw(_script),
                                  charset="utf-8",
                                  type="text/javascript")
@@ -139,7 +140,7 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
                                                                   libfolder,
                                                                   libname)
 
-                        with t.div(id="file-tab-{}".format(i),
+                        with t.div(id=f"file-tab-{i}",
                                    role="tabpanel",
                                    aria_labelledby="file-tab",
                                    cls="tab-pane fade"):
@@ -149,6 +150,9 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
 
                             if fpath.endswith("djvu"):
                                 papis.web.djvujs.widget(_unquoted_file_path)
+
+                            if fpath.endswith("epub"):
+                                papis.web.epubjs.widget(_unquoted_file_path)
 
                             elif (fpath.endswith("png")
                                   or fpath.endswith("jpg")):
