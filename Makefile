@@ -10,7 +10,7 @@ help: 								## Show this help
 .PHONY: help
 
 shell-completion:					## Generate shell completion scripts
-	make -C scripts/shell_completion
+	make -C contrib/shell_completion
 .PHONY: shell-completion
 
 update-authors:						## Generate AUTHORS file from git commits
@@ -42,19 +42,18 @@ pytest:								## Run pytest tests and doctests
 .PHONY: pytest
 
 flake8:								## Run flake8 (style checks)
-	$(PYTHON) -m flake8 papis tests examples
+	$(PYTHON) -m flake8 papis tests examples tools
+	@echo -e "\e[1;32mflake8 clean!\e[0m"
 .PHONY: flake8
 
 mypy:								## Run mypy (type annotations)
-	$(PYTHON) -m mypy papis
+	$(PYTHON) -m mypy papis tests examples tools
+	@echo -e "\e[1;32mmypy clean!\e[0m"
 .PHONY: mypy
 
-codespell:							## Run codespell (spellchecking)
-	@codespell --summary \
-		--skip build --skip resources --skip data --skip LTWA.json \
-		--uri-ignore-words-list '*' \
-		--ignore-words .codespell-ignore \
-		contrib doc examples papis scripts tests tools
+typos:								## Run typos (spellchecking)
+	typos --sort
+	@echo -e "\e[1;32mtypos clean!\e[0m"
 .PHONY: codespell
 
 ci-install:							## Install dependencies like on the CI

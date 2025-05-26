@@ -4,7 +4,8 @@ Table: search_query field prefixes
 
 The following table lists the field prefixes for all the fields
 that can be searched. See the details of query construction in the
-`arXiv API docs <https://arxiv.org/help/api/user-manual#query_details>`__.
+`arXiv API docs
+<https://info.arxiv.org/help/api/user-manual.html#51-details-of-query-construction>`__.
 
 ====== ========================
 Prefix Explanation
@@ -57,7 +58,7 @@ key_conversion = [
     _k("entry_id", [{"key": "url", "action": None}]),
     _k("journal_ref", [{"key": "journal", "action": None}]),
     _k("pdf_url", [{
-        "key": str(papis.config.get("doc-url-key-name")),
+        "key": papis.config.getstring("doc-url-key-name"),
         "action": None
     }]),
     _k("published", [
@@ -85,7 +86,7 @@ def arxiv_to_papis(result: "arxiv.Result") -> Dict[str, Any]:
             if "phd" in comment:
                 data["type"] = "phdthesis"
             elif "master" in comment:
-                data["type"] = "masterthesis"
+                data["type"] = "mastersthesis"
             else:
                 data["type"] = "thesis"
 
@@ -229,15 +230,15 @@ def explorer(
     Look for documents on `arXiv.org <https://arxiv.org/>`__.
 
 
-    For example, to search for documents with the authors "Hummer" and
-    "Garnet Chan" (a maximum of 100 articles), use
+    For example, to search for documents with the authors "Hummel" and
+    "Garnet Chan" (limited to a maximum of 100 articles), use:
 
     .. code:: sh
 
         papis explore arxiv -a 'Hummel' -m 100 arxiv -a 'Garnet Chan' pick
 
     If you want to search for the exact author name 'John Smith', you should
-    enclose it in extra quotes, as in the example below
+    enclose it in extra quotes, as in the example below:
 
     .. code:: sh
 

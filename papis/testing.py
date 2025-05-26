@@ -152,7 +152,7 @@ def populate_library(libdir: str) -> None:
 
     :arg libdir: an existing empty library directory.
     """
-    import papis.id
+    from papis.id import ID_KEY_NAME, compute_an_id
     from papis.document import Document
 
     for i, data in enumerate(PAPIS_TEST_DOCUMENTS):
@@ -171,7 +171,7 @@ def populate_library(libdir: str) -> None:
 
         # create document
         doc = Document(folder_path, doc_data)
-        doc[papis.id.key_name()] = papis.id.compute_an_id(doc)
+        doc[ID_KEY_NAME] = compute_an_id(doc)
         doc.save()
 
 
@@ -183,7 +183,7 @@ class TemporaryConfiguration:
     ``XDG_CACHE_HOME``). This is meant to be used by tests to create a default
     environment in which to run.
 
-    It can be used in the standard way as
+    It can be used in the standard way as:
 
     .. code:: python
 
@@ -259,9 +259,21 @@ class TemporaryConfiguration:
         # load settings
         import papis.config
 
+        database_backend = os.environ.get("PAPIS_DATABASE_BACKEND", "papis")
+        # FIXME: there should be a way to get the query string without fully
+        # initializing the whole database (which can be quite expensive)
+        default_query_string = {
+            "papis": ".",
+            "whoosh": "*",
+        }.get(database_backend, "papis")
+
         settings = {
             self.libname: {"dir": papis.config.escape_interp(self.libdir)},
-            "settings": {"default-library": self.libname}
+            "settings": {
+                "default-library": self.libname,
+                "database-backend": database_backend,
+                "default-query-string": default_query_string
+            }
         }
 
         if self.settings is not None:
@@ -287,7 +299,8 @@ class TemporaryConfiguration:
 
         # monkeypatch globals
         import papis.format
-        self._monkeypatch.setattr(papis.format, "FORMATTER", None)
+        self._monkeypatch.setattr(papis.format, "FORMATTER", {})
+
         import papis.database
         self._monkeypatch.setattr(papis.database, "DATABASES", {})
         # FIXME: may need to also add the following:
@@ -381,10 +394,12 @@ class PapisRunner(click.testing.CliRunner):
     """A wrapper around :class:`click.testing.CliRunner`."""
 
     def __init__(self, **kwargs: Any) -> None:
-        if "mix_stderr" not in kwargs:
-            kwargs["mix_stderr"] = False
-
         super().__init__(**kwargs)
+
+        # NOTE: click v8.2.0 removed mix_stderr, which was True by default before.
+        # This should have the streams not mix in all versions, hopefully.
+        if hasattr(self, "mix_stderr") and "mix_stderr" not in kwargs:
+            self.mix_stderr = False
 
     def invoke(self,        # type: ignore[override]
                cli: click.Command,
@@ -417,7 +432,7 @@ class ResourceCache:
       conversion (used in :meth:`get_local_resource`).
     * ``"both"``: both local and remote resources are updated.
 
-    Resources can then be retrieved as
+    Resources can then be retrieved as:
 
     .. code:: python
 
@@ -551,7 +566,7 @@ def _doctest_tmp_config(request: SubRequest) -> Iterator[None]:
 def tmp_config(request: SubRequest) -> Iterator[TemporaryConfiguration]:
     """A fixture that creates a :class:`TemporaryConfiguration`.
 
-    Additional keyword arguments can be passed using the ``config_setup`` marker
+    Additional keyword arguments can be passed using the ``config_setup`` marker:
 
     .. code:: python
 
@@ -576,7 +591,7 @@ def tmp_config(request: SubRequest) -> Iterator[TemporaryConfiguration]:
 def tmp_library(request: SubRequest) -> Iterator[TemporaryLibrary]:
     """A fixture that creates a :class:`TemporaryLibrary`.
 
-    Additional keyword arguments can be passed using the ``library_setup`` marker
+    Additional keyword arguments can be passed using the ``library_setup`` marker:
 
     .. code:: python
 

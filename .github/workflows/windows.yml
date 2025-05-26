@@ -1,4 +1,4 @@
-name: Build Windows release
+name: Windows
 
 on:
   push:
@@ -9,8 +9,13 @@ on:
   pull_request:
       branches: [ "main" ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows-release:
+    name: Build Release
     runs-on: windows-latest
     strategy:
       fail-fast: true
@@ -34,15 +39,9 @@ jobs:
       shell: bash
       run: |
         # NOTE: python version follows "X.YdevZ+gHASH" format
-        py_version=$(
-            git describe --tags --dirty \
-            | awk -F '-' '{ printf "%s.dev%s+%s\n", substr($1, 2), $2, $3 }'
-        )
+        py_version=$(python tools/windows/get_version.py python)
         # NOTE: MSI version cannot have letters and is only "X.Y.Z"
-        msi_version=$(
-            git describe --tags --dirty \
-            | awk -F '-' '{ printf "%s.%s", substr($1, 2), $2 }'
-        )
+        msi_version=$(python tools/windows/get_version.py msi)
         sed -i "s/^version =\".*\"/version =\"${py_version}\"/" pyproject.toml
 
         echo "PAPIS_VERSION=${py_version}" >> "$GITHUB_ENV"
@@ -50,8 +49,8 @@ jobs:
 
     - name: Build Windows binaries
       run: |
-        pyinstaller --clean scripts/windows/papis_onefile.spec
-        pyinstaller --clean scripts/windows/papis_onedir.spec
+        pyinstaller --clean tools/windows/papis_onefile.spec
+        pyinstaller --clean tools/windows/papis_onedir.spec
 
     - name: Publish binary as artifact
       uses: actions/upload-artifact@v4
@@ -70,14 +69,14 @@ jobs:
     - name: Render the MSI build manifest template
       shell: bash
       run: |
-        python scripts/windows/populate_wxs_artifacts.py \
-          scripts/windows/papis_template.wxs \
-          --outfile scripts/windows/papis.wxs \
+        python tools/windows/populate_wxs_artifacts.py \
+          tools/windows/papis_template.wxs \
+          --outfile tools/windows/papis.wxs \
           --version '${{ env.MSI_VERSION }}'
 
     - name: Build the installer
       run: |
-        wix build -ext WixToolset.UI.wixext -o dist/papis.msi scripts\windows\papis.wxs
+        wix build -ext WixToolset.UI.wixext -o dist/papis.msi tools\windows\papis.wxs
 
     - name: Publish installer as artifact
       uses: actions/upload-artifact@v4

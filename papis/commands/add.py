@@ -1,23 +1,24 @@
 """
 The ``add`` command is one of the central commands of the ``papis``
-command-line interface It is a very versatile command with a fair amount of
+command-line interface. It is a very versatile command with a fair amount of
 options.
 
 There are also a few customization settings available for this command, which
-are described on the :ref:`configuration page <add-command-options>` for add.
+are described on the :ref:`configuration page <add-command-options>` for
+``add``.
 
 Examples
 ^^^^^^^^
 
 - Add a document located in ``~/Documents/interesting.pdf`` and name the
-  folder where it will be stored in the database ``interesting-paper-2021``
+  folder where it will be stored in the database ``interesting-paper-2021``:
 
     .. code:: sh
 
         papis add ~/Documents/interesting.pdf \\
             --folder-name interesting-paper-2021
 
-  if you want to directly add some metadata, like author, title and tags,
+  If you want to directly add some metadata, like author, title and tags,
   you can also run the following:
 
     .. code:: sh
@@ -37,7 +38,7 @@ Examples
 
         papis add ~/Documents/interesting.pdf --from doi 10.10763/1.3237134
 
-- Add paper to a library named ``machine-learning`` from ``arxiv.org``
+- Add a paper from ``arxiv.org`` to a library named ``machine-learning``:
 
     .. code:: sh
 
@@ -45,30 +46,30 @@ Examples
             --from arxiv https://arxiv.org/abs/1712.03134
 
 - If you do not want copy the original PDFs into the library, you can
-  also tell Papis to just create a link to them, for example
+  also tell Papis to just create a link to them, for example:
 
     .. code:: sh
 
         papis add --link ~/Documents/interesting.pdf \\
             --from doi 10.10763/1.3237134
 
-  will add an entry into the Papis library, but the PDF document will remain
-  at ``~/Documents/interesting.pdf``. In the document's folder
-  there will be a link to ``~/Documents/interesting.pdf`` instead of the
-  file itself. Of course you always have to be sure that the
-  document at ``~/Documents/interesting.pdf`` does not disappear, otherwise
+  adds an entry to the Papis library, but the PDF document remains at
+  ``~/Documents/interesting.pdf``. The document's folder will contain a link
+  to ``~/Documents/interesting.pdf`` instead of the file itself. Make sure that
+  the document at ``~/Documents/interesting.pdf`` does not disappear, or
   you will end up without a document file.
 
-- Papis also tries to make sense of the inputs that you have passed
-  on the command-line. For instance you could provide only a DOI and
-  Papis will figure out if this is indeed a DOI and download available metadata
-  using Crossref. For example, you can try
+- Papis tries to make sense of the arguments with which it is provided.
+  For instance, you could only provide a DOI, and Papis will verify that
+  this is a valid DOI and download available metadata using Crossref.
+  For example, you can try:
 
     .. code:: sh
 
         papis add 10.1103/PhysRevLett.123.156401
 
-  Similarly, a wide array of known journal are recognized by URL, so you can try:
+  Similarly, a wide array of known journals are recognized by URL, so you can
+  try:
 
     .. code:: sh
 
@@ -94,7 +95,7 @@ Examples
             }"
         papis add --from bibtex "$(xclip -o)"
 
-Command-line Interface
+Command-line interface
 ^^^^^^^^^^^^^^^^^^^^^^
 
 .. click:: papis.commands.add:cli
@@ -122,7 +123,6 @@ import papis.downloaders
 import papis.git
 import papis.format
 import papis.citations
-import papis.id
 import papis.logging
 import papis.commands.doctor
 
@@ -132,7 +132,7 @@ logger = papis.logging.get_logger(__name__)
 
 class FromFolderImporter(papis.importer.Importer):
 
-    """Importer that gets files and data from a valid papis folder"""
+    """Importer that gets files and data from a valid papis folder."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(name="folder", **kwargs)
@@ -143,9 +143,11 @@ class FromFolderImporter(papis.importer.Importer):
 
     def fetch(self) -> None:
         self.logger.info("Importing from folder '%s'.", self.uri)
+        from papis.id import ID_KEY_NAME
 
         doc = papis.document.from_folder(self.uri)
-        del doc[papis.id.key_name()]
+        del doc[ID_KEY_NAME]
+
         self.ctx.data = papis.document.to_dict(doc)
         self.ctx.files = doc.get_files()
 
@@ -153,7 +155,7 @@ class FromFolderImporter(papis.importer.Importer):
 class FromLibImporter(papis.importer.Importer):
 
     """Importer that queries a valid Papis library (also paths) and adds files
-    and data
+    and data.
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -182,6 +184,7 @@ def get_file_name(
         doc: papis.document.Document,
         original_filepath: str,
         suffix: str = "",
+        file_name_format: Optional[papis.strings.AnyString] = None,
         base_name_limit: int = 150) -> str:
     warn("'get_file_name' is deprecated and will be removed in the next "
          "version. Use 'papis.paths.get_document_file_name' instead.",
@@ -212,8 +215,8 @@ def ensure_new_folder(path: str) -> str:
 
 def run(paths: List[str],
         data: Optional[Dict[str, Any]] = None,
-        folder_name: Optional[str] = None,
-        file_name: Optional[str] = None,
+        folder_name: Optional[papis.strings.AnyString] = None,
+        file_name: Optional[papis.strings.AnyString] = None,
         subfolder: Optional[str] = None,
         base_path: Optional[str] = None,
         batch: bool = False,
@@ -226,11 +229,11 @@ def run(paths: List[str],
         citations: Optional[papis.citations.Citations] = None,
         auto_doctor: bool = False) -> None:
     """
-    :param paths: Paths to the documents to be added
+    :param paths: Paths to the documents to be added.
     :param data: Data for the document to be added.
         If more data is to be retrieved from other sources, the data dictionary
         will be updated from these sources.
-    :param folder_name: Name of the folder where the document will be stored
+    :param folder_name: Name of the folder where the document will be stored.
     :param file_name: File name of the document's files to be stored.
     :param subfolder: Folder within the library where the document's folder
         should be stored.
@@ -254,7 +257,7 @@ def run(paths: List[str],
 
     import tempfile
 
-    in_documents_paths = paths
+    in_document_paths = paths
     temp_dir = tempfile.mkdtemp()
     tmp_document = papis.document.Document(folder=temp_dir, data=data)
     papis.database.get().maybe_compute_id(tmp_document)
@@ -273,43 +276,53 @@ def run(paths: List[str],
                     papis.document.describe(tmp_document))
         papis.commands.doctor.fix_errors(tmp_document)
 
+    # create a nice folder name for the new document
     if base_path is None:
         base_path = os.path.expanduser(papis.config.get_lib_dirs()[0])
 
     if subfolder:
         base_path = os.path.join(base_path, subfolder)
 
+    # rename all the given file names
+    from papis.paths import symlink, rename_document_files
+
+    renamed_file_list = rename_document_files(
+        tmp_document, in_document_paths,
+        file_name_format=file_name)
+
     import shutil
-    from papis.paths import symlink, unique_suffixes
-    from papis.paths import get_document_file_name, get_document_unique_folder
 
-    g = unique_suffixes()
-    string_append = ""
+    document_file_list = []
+    for in_file_path, out_file_name in zip(in_document_paths, renamed_file_list):
+        out_file_path = os.path.join(temp_dir, out_file_name)
+        if os.path.exists(out_file_path):
+            logger.warning("File '%s' already exists. Skipping...", out_file_path)
+            continue
 
-    new_file_list = []
-    for in_file_path in in_documents_paths:
-        new_filename = get_document_file_name(
-            tmp_document, in_file_path,
-            suffix=string_append,
-            file_name_format=file_name)
-        new_file_list.append(new_filename)
+        if not batch and open_file:
+            papis.utils.open_file(in_file_path)
 
-        tmp_end_filepath = os.path.join(temp_dir, new_filename)
-        string_append = next(g)
+        if not batch and confirm and not papis.tui.utils.confirm(
+                f"Add file '{os.path.basename(in_file_path)}' "
+                f"(renamed to '{os.path.basename(out_file_path)}') to document?"):
+            continue
 
         if link:
-            in_file_abspath = os.path.abspath(in_file_path)
-            logger.info("[SYMLINK] '%s' to '%s'.", in_file_abspath, tmp_end_filepath)
-            symlink(in_file_abspath, tmp_end_filepath)
+            logger.info("[LN] '%s' to '%s'.", in_file_path, out_file_name)
+            symlink(in_file_path, out_file_path)
         elif move:
-            logger.info("[MV] '%s' to '%s'.", in_file_path, tmp_end_filepath)
-            shutil.copy(in_file_path, tmp_end_filepath)
+            logger.info("[MV] '%s' to '%s'.", in_file_path, out_file_name)
+            shutil.copy(in_file_path, out_file_path)
         else:
-            logger.info("[CP] '%s' to '%s'.", in_file_path, tmp_end_filepath)
-            shutil.copy(in_file_path, tmp_end_filepath)
+            logger.info("[CP] '%s' to '%s'.", in_file_path, out_file_name)
+            shutil.copy(in_file_path, out_file_path)
 
-    tmp_document["files"] = new_file_list
+        document_file_list.append(out_file_name)
+
+    tmp_document["files"] = document_file_list
     tmp_document.save()
+
+    from papis.paths import get_document_unique_folder
 
     base_path = os.path.normpath(base_path)
     out_folder_path = get_document_unique_folder(
@@ -317,14 +330,14 @@ def run(paths: List[str],
         folder_name_format=folder_name)
 
     logger.info("Document folder is '%s'.", out_folder_path)
-    logger.debug("Document includes files: '%s'.", "', '".join(in_documents_paths))
+    logger.debug("Document includes files: '%s'.", "', '".join(document_file_list))
 
     # Check if the user wants to edit before submitting the doc
     # to the library
     if edit:
         logger.info("Editing file before adding it.")
+
         papis.api.edit_file(tmp_document.get_info_file(), wait=True)
-        logger.debug("Loading the changes made by editing.")
         tmp_document.load()
 
     papis.hooks.run("on_add_done", tmp_document)
@@ -332,8 +345,7 @@ def run(paths: List[str],
     # Duplication checking
     logger.info("Checking if this document is already in the library. "
                 "This uses the keys ['%s'] to determine uniqueness.",
-                "', '".join(papis.config.getlist("unique-document-keys"))
-                )
+                "', '".join(papis.config.getlist("unique-document-keys")))
 
     has_duplicate = False
     try:
@@ -375,10 +387,6 @@ def run(paths: List[str],
             title=f"This{dup_text}document will be added to your library",
             lexer_name="yaml")
 
-    if open_file:
-        for d_path in tmp_document.get_files():
-            papis.utils.open_file(d_path)
-
     if confirm:
         if not papis.tui.utils.confirm("Do you want to add the new document?"):
             return
@@ -390,11 +398,11 @@ def run(paths: List[str],
 
     if git:
         papis.git.add_and_commit_resource(
-            str(tmp_document.get_main_folder()), ".",
+            out_folder_path, ".",
             "Add document '{}'".format(papis.document.describe(tmp_document)))
 
     if move:
-        for in_file_path in in_documents_paths:
+        for in_file_path in in_document_paths:
             try:
                 os.remove(in_file_path)
             except Exception as exc:
@@ -403,83 +411,83 @@ def run(paths: List[str],
 
 @click.command(
     "add",
-    help="Add a document into a given library"
+    help="Add a document into a given library."
 )
 @click.help_option("--help", "-h")
 @click.argument("files", type=click.Path(), nargs=-1)
 @click.option(
     "-s", "--set", "set_list",
-    help="Set some information before",
+    help="Set some information before.",
     multiple=True,
     type=(str, str))
 @click.option(
     "-d", "--subfolder",
-    help="Subfolder in the library",
+    help="Subfolder in the library.",
     default=lambda: papis.config.getstring("add-subfolder"))
 @papis.cli.bool_flag(
     "-p", "--pick-subfolder",
-    help="Pick from existing subfolders")
+    help="Pick from existing subfolders.")
 @click.option(
     "--folder-name",
-    help="Name for the document's folder (papis format)",
-    default=lambda: papis.config.getstring("add-folder-name"))
+    help="Name format for the document main folder.",
+    type=papis.cli.FormattedStringParamType(),
+    default=lambda: papis.config.getformattedstring("add-folder-name"))
 @click.option(
     "--file-name",
-    help="File name for the document (papis format)",
+    help="File name format for the document.",
+    type=papis.cli.FormattedStringParamType(),
     default=None)
 @click.option(
     "--from", "from_importer",
-    help="Add document from a specific importer ({})".format(
-        ", ".join(papis.importer.available_importers())
-    ),
+    help="Add document from a specific importer.",
     type=(click.Choice(papis.importer.available_importers()), str),
     nargs=2,
     multiple=True,
     default=(),)
 @papis.cli.bool_flag(
     "-b", "--batch",
-    help="Batch mode, do not prompt or otherwise")
+    help="Batch mode, do not prompt or otherwise.")
 @papis.cli.bool_flag(
     "--confirm/--no-confirm",
-    help="Ask to confirm before adding to the collection",
+    help="Ask to confirm before adding to the collection.",
     default=lambda: papis.config.getboolean("add-confirm"))
 @papis.cli.bool_flag(
     "--open/--no-open", "open_file",
-    help="Open file before adding document",
+    help="Open files before adding them to the document.",
     default=lambda: papis.config.getboolean("add-open"))
 @papis.cli.bool_flag(
     "--edit/--no-edit",
-    help="Edit info file before adding document",
+    help="Edit info file before adding document.",
     default=lambda: papis.config.getboolean("add-edit"))
 @papis.cli.bool_flag(
     "--link/--no-link",
     help="Instead of copying the file to the library, create a link to "
-         "its original location",
+         "its original location.",
     default=False)
 @papis.cli.bool_flag(
     "--move/--no-move",
     help="Instead of copying the file to the library, "
-         "move it from its original location",
+         "move it from its original location.",
     default=False)
 @papis.cli.bool_flag(
     "--auto-doctor/--no-auto-doctor",
     help="Apply papis doctor to newly added documents.",
     default=lambda: papis.config.getboolean("auto-doctor"))
-@papis.cli.git_option(help="Git add and commit the new document")
+@papis.cli.git_option(help="Git add and commit the new document.")
 @papis.cli.bool_flag(
     "--download-files/--no-download-files",
-    help="Download file with importer if available or not",
+    help="Download file with importer if available or not.",
     default=lambda: papis.config.getboolean("add-download-files"))
 @papis.cli.bool_flag(
     "--fetch-citations/--no-fetch-citations",
-    help="Fetch citations from a DOI (Digital Object Identifier)",
+    help="Fetch citations from a DOI (Digital Object Identifier).",
     default=lambda: papis.config.getboolean("add-fetch-citations"))
 def cli(files: List[str],
         set_list: List[Tuple[str, str]],
         subfolder: str,
         pick_subfolder: bool,
-        folder_name: str,
-        file_name: Optional[str],
+        folder_name: papis.strings.AnyString,
+        file_name: Optional[papis.strings.AnyString],
         from_importer: List[Tuple[str, str]],
         batch: bool,
         confirm: bool,
@@ -525,7 +533,8 @@ def cli(files: List[str],
 
     # merge importer data + commandline data into a single set
     imported = papis.utils.collect_importer_data(
-        matching_importers, batch=batch, use_files=download_files)
+        matching_importers, batch=batch, use_files=download_files
+    )
 
     ctx = papis.importer.Context()
     ctx.data = imported.data

@@ -47,6 +47,19 @@ class Command(ABC, Generic[T]):
         pass
 
 
+class Browse(Command[T]):
+    regex = re.compile(r"browse ([\d ]+)")
+    command = "become(echo browse {+n})"
+    key = "ctrl-b"
+
+    def run(self, docs: List[T]) -> List[T]:
+        from papis.commands.browse import run
+        for doc in docs:
+            if isinstance(doc, papis.document.Document):
+                run(doc)
+        return []
+
+
 class Choose(Command[T]):
     regex = re.compile(r"choose ([\d ]+)")
     command = "become(echo choose {+n})"
@@ -66,6 +79,19 @@ class Edit(Command[T]):
         for doc in docs:
             if isinstance(doc, papis.document.Document):
                 run(doc)
+        return []
+
+
+class EditNote(Command[T]):
+    regex = re.compile(r"edit_notes ([\d ]+)")
+    command = "become(echo edit_notes {+n})"
+    key = "ctrl-q"
+
+    def run(self, docs: List[T]) -> List[T]:
+        from papis.commands.edit import edit_notes
+        for doc in docs:
+            if isinstance(doc, papis.document.Document):
+                edit_notes(doc)
         return []
 
 
@@ -101,7 +127,7 @@ class Picker(papis.pick.Picker[T]):
                 f"Found 'fzf' version {version} but "
                 f"version >={MIN_FZF_VERSION} is required")
 
-        commands: List[Command[T]] = [Choose(), Open(), Edit()]
+        commands: List[Command[T]] = [Browse(), Choose(), Open(), Edit(), EditNote()]
 
         bindings = (
             [c.binding() for c in commands]
@@ -111,7 +137,7 @@ class Picker(papis.pick.Picker[T]):
             [fzf, "--bind", ",".join(bindings)]
             + papis.config.getlist("fzf-extra-flags"))
 
-        _fmt = papis.config.getstring("fzf-header-format")
+        _fmt = papis.config.getformattedstring("fzf-header-format")
 
         def _header_filter(d: T) -> str:
             if isinstance(d, papis.document.Document):

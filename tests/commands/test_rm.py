@@ -1,5 +1,6 @@
 import os
 import pytest
+import shutil
 from _pytest.monkeypatch import MonkeyPatch
 
 import papis.database
@@ -13,12 +14,17 @@ def test_rm_run(tmp_library: TemporaryLibrary) -> None:
     db = papis.database.get()
     docs = db.get_all_documents()
     folder = docs[0].get_main_folder()
+    assert folder is not None
     assert os.path.exists(folder)
 
     run(docs[0])
+    assert folder is not None
     assert not os.path.exists(folder)
 
 
+@pytest.mark.skipif(
+    not shutil.which("git"),
+    reason="Test requires 'git' executable to be in the PATH")
 @pytest.mark.library_setup(use_git=True)
 def test_rm_files_run(tmp_library: TemporaryLibrary) -> None:
     from papis.commands.rm import run
@@ -36,7 +42,7 @@ def test_rm_files_run(tmp_library: TemporaryLibrary) -> None:
     assert not os.path.exists(filename)
 
     db.clear()
-    db.documents = None
+    db.initialize()
 
     doc, = db.query_dict({"title": title})
     assert doc["title"] == title
@@ -51,6 +57,7 @@ def test_rm_cli(tmp_library: TemporaryLibrary, monkeypatch: MonkeyPatch) -> None
     db = papis.database.get()
     doc, = db.query_dict({"author": "turing"})
     folder = doc.get_main_folder()
+    assert folder is not None
     assert os.path.exists(folder)
 
     with monkeypatch.context() as m:
@@ -66,6 +73,7 @@ def test_rm_cli(tmp_library: TemporaryLibrary, monkeypatch: MonkeyPatch) -> None
             cli,
             ["turing"])
         assert result.exit_code == 0
+        assert folder is not None
         assert not os.path.exists(folder)
 
         result = cli_runner.invoke(
@@ -106,6 +114,7 @@ def test_rm_confirm_cli(tmp_library: TemporaryLibrary,
     db = papis.database.get()
     doc, = db.query_dict({"author": "krishnamurti"})
     folder = doc.get_main_folder()
+    assert folder is not None
     assert os.path.exists(folder)
 
     with monkeypatch.context() as m:
@@ -116,6 +125,7 @@ def test_rm_confirm_cli(tmp_library: TemporaryLibrary,
             cli,
             ["krishnamurti"])
         assert result.exit_code == 0
+        assert folder is not None
         assert os.path.exists(folder) == (not confirm)
 
     docs = db.query_dict({"author": "krishnamurti"})

@@ -2,6 +2,12 @@ import sys
 import os
 from typing import Any, Dict
 
+from papis.strings import FormattedString
+
+
+def _f(value: str) -> FormattedString:
+    return FormattedString("python", value)
+
 
 def get_default_opener() -> str:
     """Get the default file opener for the current system
@@ -16,16 +22,20 @@ def get_default_opener() -> str:
         # NOTE: should work on Linux / FreeBSD / cygwin
         return "xdg-open"
 
-# NOTE: Try to keep these in the same order as in the `default-settings.rst`
+# NOTE: Try to keep these in the same order as in the `default_settings.rst`
 # document in the docs, so they can be easily checked and updated
 
+
+NOT_SET = object()
 
 settings: Dict[str, Any] = {
     # unused or deprecated
     "add-interactive": False,
     "mvtool": "mv",
-    "formater": None,
-    "doctor-keys-exist-keys": None,
+    "formater": NOT_SET,  # spell: disable
+    "doctor-keys-exist-keys": NOT_SET,
+    "doctor-key-type-check-keys": NOT_SET,
+    "doctor-key-type-check-separator": NOT_SET,
 
     # general settings
     "local-config-file": ".papis.config",
@@ -37,8 +47,9 @@ settings: Dict[str, Any] = {
     "doc-url-key-name": "doc_url",
     "default-library": "papers",
     "format-doc-name": "doc",
-    "match-format": "{doc[tags]}{doc.subfolder}{doc[title]}{doc[author]}{doc[year]}",
-    "header-format": (
+    "match-format": _f(
+        "{doc[tags]}{doc.subfolder}{doc[title]}{doc[author]}{doc[year]}"),
+    "header-format": _f(
         "<ansired>{doc.html_escape[title]}</ansired>\n"
         " <ansigreen>{doc.html_escape[author]}</ansigreen>\n"
         "  <ansiblue>({doc.html_escape[year]})</ansiblue> "
@@ -46,15 +57,16 @@ settings: Dict[str, Any] = {
     ),
     "header-format-file": None,
     "info-allow-unicode": True,
-    "unique-document-keys": "['doi','ref','isbn','isbn10','url','doc_url']",
-    "document-description-format": "{doc[title]} - {doc[author]}",
+    "unique-document-keys": ["doi", "isbn", "isbn10", "eprint", "url", "doc_url"],
+    "document-description-format": _f("{doc[title]} - {doc[author]}"),
     "sort-field": None,
     "sort-reverse": False,
     "formatter": "python",
     "doc-paths-lowercase": True,
     "doc-paths-extra-chars": "",
     "doc-paths-word-separator": "-",
-    "library-header-format": (
+    "ref-word-separator": "_",
+    "library-header-format": _f(
         "<ansired>{library[name]}</ansired>"
         " <ansiblue>{library[paths]}</ansiblue>"
     ),
@@ -71,18 +83,22 @@ settings: Dict[str, Any] = {
 
     # bibtex
     "bibtex-journal-key": "journal",
-    "extra-bibtex-keys": "[]",
-    "bibtex-ignore-keys": "[]",
-    "extra-bibtex-types": "[]",
+    "extra-bibtex-keys": [],
+    "bibtex-ignore-keys": [],
+    "extra-bibtex-types": [],
     "bibtex-unicode": False,
     "bibtex-export-file": False,
     "multiple-authors-separator": " and ",
-    "multiple-authors-format": "{au[family]}, {au[given]}",
+    "multiple-authors-format": _f("{au[family]}, {au[given]}"),
+
+    # csl
+    "csl-style": "harvard1",
+    "csl-formatter": "plain",
 
     # add
-    "ref-format": "{doc[title]:.15} {doc[author]:.6} {doc[year]}",
-    "add-folder-name": "",
-    "add-file-name": None,
+    "ref-format": _f("{doc[title]:.15} {doc[author]:.6} {doc[year]}"),
+    "add-folder-name": _f(""),
+    "add-file-name": _f(""),
     "add-subfolder": "",
     "add-confirm": False,
     "add-edit": False,
@@ -94,7 +110,7 @@ settings: Dict[str, Any] = {
 
     # browse
     "browse-key": "auto",
-    "browse-query-format": "{doc[title]} {doc[author]}",
+    "browse-query-format": _f("{doc[title]} {doc[author]}"),
     "search-engine": "https://duckduckgo.com",
 
     # edit
@@ -103,34 +119,42 @@ settings: Dict[str, Any] = {
 
     # doctor
     "doctor-default-checks": ["files", "biblatex-required-keys", "bibtex-type", "refs"],
+    "doctor-default-checks-extend": [],
     "doctor-keys-missing-keys": ["title", "author", "author_list", "ref"],
+    "doctor-keys-missing-keys-extend": [],
     "doctor-duplicated-keys-keys": ["ref"],
+    "doctor-duplicated-keys-keys-extend": [],
     "doctor-duplicated-values-keys": ["files", "author_list"],
+    "doctor-duplicated-values-keys-extend": [],
     "doctor-html-codes-keys": ["title", "author", "abstract", "journal"],
+    "doctor-html-codes-keys-extend": [],
     "doctor-html-tags-keys": ["title", "author", "abstract", "journal"],
-    "doctor-key-type-check-keys": ["year:int",
-                                   "month:int",
-                                   "files:list",
-                                   "notes:str",
-                                   "author_list:list",
-                                   "doi:str",
-                                   "ref:str",
-                                   "isbn:str",
-                                   "author:str",
-                                   "journal:str",
-                                   "note:str",
-                                   "type:str",
-                                   "publisher:str",
-                                   "title:str",
-                                   "shorttitle:str"],
-    "doctor-key-type-check-separator": None,
+    "doctor-html-tags-keys-extend": [],
+    "doctor-key-type-keys": ["year:int",
+                             "month:int",
+                             "files:list",
+                             "notes:str",
+                             "author_list:list",
+                             "doi:str",
+                             "ref:str",
+                             "isbn:str",
+                             "author:str",
+                             "journal:str",
+                             "note:str",
+                             "tags:list",
+                             "type:str",
+                             "publisher:str",
+                             "title:str",
+                             "shorttitle:str"],
+    "doctor-key-type-keys-extend": [],
+    "doctor-key-type-separator": None,
 
     # open
     "open-mark": False,
     "mark-key-name": "marks",
     "mark-format-name": "mark",
-    "mark-header-format": "{mark[name]} - {mark[value]}",
-    "mark-match-format": "{mark[name]} - {mark[value]}",
+    "mark-header-format": _f("{mark[name]} - {mark[value]}"),
+    "mark-match-format": _f("{mark[name]} - {mark[value]}"),
     "mark-opener-format": get_default_opener(),
 
     # serve
@@ -205,7 +229,7 @@ settings: Dict[str, Any] = {
     "database-backend": "papis",
     "use-cache": True,
     "cache-dir": None,
-    "whoosh-schema-fields": "['doi']",
+    "whoosh-schema-fields": ["doi"],
     "whoosh-schema-prototype":
     "{\n"
     '"author": TEXT(stored=True),\n'
@@ -219,15 +243,9 @@ settings: Dict[str, Any] = {
     "fzf-binary": "fzf",
     "fzf-extra-flags": ["--ansi", "--multi", "-i"],
     "fzf-extra-bindings": ["ctrl-s:jump"],
-    "fzf-header-format": ("{c.Fore.MAGENTA}"
-                          "{doc[title]:<70.70}"
-                          "{c.Style.RESET_ALL}"
-                          " :: "
-                          "{c.Fore.CYAN}"
-                          "{doc[author]:<20.20}"
-                          "{c.Style.RESET_ALL}"
-                          "{c.Fore.YELLOW}"
-                          "«{doc[year]:4}»"
-                          "{c.Style.RESET_ALL}"
-                          ":{doc[tags]}"),
+    "fzf-header-format": _f(
+        "{c.Fore.MAGENTA}{doc[title]:<70.70}{c.Style.RESET_ALL}"
+        " :: "
+        "{c.Fore.CYAN}{doc[author]:<20.20}{c.Style.RESET_ALL}"
+        "{c.Fore.YELLOW}«{doc[year]:4}»{c.Style.RESET_ALL}:{doc[tags]}"),
 }

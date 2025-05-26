@@ -1,3 +1,5 @@
+.. _developer-api-reference:
+
 Developer API reference
 =======================
 
@@ -37,6 +39,27 @@ Developer API reference
 .. automodule:: papis.config
     :members:
 
+``papis.database``
+------------------
+
+.. automodule:: papis.database
+   :members:
+
+.. automodule:: papis.database.base
+   :members:
+
+``papis.database.cache``
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: papis.database.cache
+   :members:
+
+``papis.database.whoosh``
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: papis.database.whoosh
+   :members:
+
 ``papis.docmatcher``
 --------------------
 
@@ -69,6 +92,8 @@ Developer API reference
 
 ``papis.format``
 ----------------
+
+.. autoclass:: papis.strings.FormattedString
 
 .. automodule:: papis.format
     :members:

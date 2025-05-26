@@ -15,6 +15,7 @@ USENIX_LINK_URLS = (
 
 def download_bibtex(cache: ResourceCache, down: Downloader, infile: str) -> None:
     url = down.get_bibtex_url()
+    assert url is not None
     data = cache.get_remote_resource(infile, url, cookies=down.cookies)
     down.bibtex_data = data.decode()
 
@@ -47,6 +48,7 @@ def test_usenix_fetch(tmp_config: TemporaryConfiguration,
 
     down = cls.match(url)
     assert down is not None
+    assert isinstance(down, Downloader)
 
     uid = os.path.basename(url)
     infile = "USENIX_{}.bib".format(uid)

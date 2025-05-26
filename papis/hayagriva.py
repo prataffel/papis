@@ -31,7 +31,7 @@ HAYAGRIVA_PARENT_TYPES = {
 }
 
 # NOTE: these are mostly taken from
-#   https://github.com/typst/hayagriva/blob/main/tests/basic.yml
+#   https://github.com/typst/hayagriva/blob/main/tests/data/basic.yml
 # as there does not seem to be any official list of what goes in the entry and
 # what goes in the parent (some fields can even repeat, which is not supported
 # by papis)
@@ -113,7 +113,7 @@ BIBTEX_TO_HAYAGRIVA_TYPE_MAP = {
     # type aliases (Section 2.1.2)
     "conference": "conference",
     "electronic": "web",
-    "masterthesis": "thesis",
+    "mastersthesis": "thesis",
     "phdthesis": "thesis",
     "techreport": "report",
     "www": "web",

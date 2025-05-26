@@ -10,6 +10,7 @@ from typing import (
 
 import papis
 import papis.config
+import papis.strings
 import papis.logging
 
 logger = papis.logging.get_logger(__name__)
@@ -60,14 +61,14 @@ def keyconversion_to_data(conversions: Sequence[KeyConversionPair],
     JSON data obtained from a website API and standard ``papis`` key names and
     formatting. The implementation is completely generic.
 
-    For example, we have the simple dictionary
+    For example, we have the simple dictionary:
 
     .. code:: python
 
         data = {"id": "10.1103/physrevb.89.140501"}
 
     which contains the DOI of a document with the wrong key. We can then write
-    the following rules
+    the following rules:
 
     .. code:: python
 
@@ -141,7 +142,10 @@ def keyconversion_to_data(conversions: Sequence[KeyConversionPair],
     return new_data
 
 
-def author_list_to_author(data: Dict[str, Any]) -> str:
+def author_list_to_author(
+        data: Dict[str, Any],
+        separator: Optional[str] = None,
+        multiple_authors_format: Optional[papis.strings.AnyString] = None) -> str:
     """Convert a list of authors into a single author string.
 
     This uses the :confval:`multiple-authors-separator` and the
@@ -159,16 +163,21 @@ def author_list_to_author(data: Dict[str, Any]) -> str:
     if "author_list" not in data:
         return ""
 
-    separator = papis.config.getstring("multiple-authors-separator")
-    fmt = papis.config.getstring("multiple-authors-format")
+    if separator is None:
+        separator = papis.config.getstring("multiple-authors-separator")
 
-    if separator is None or fmt is None:
+    if multiple_authors_format is None:
+        multiple_authors_format = (
+            papis.config.getformattedstring("multiple-authors-format"))
+
+    if separator is None or multiple_authors_format is None:
         raise ValueError(
             "Cannot join the author list if the settings 'multiple-authors-separator' "
             "and 'multiple-authors-format' are not present in the configuration")
 
     return separator.join([
-        fmt.format(au=author) for author in data["author_list"]
+        papis.format.format(multiple_authors_format, author, doc_key="au")
+        for author in data["author_list"]
         ])
 
 
@@ -248,7 +257,9 @@ def split_author_name(author: str) -> Dict[str, Any]:
     given = " ".join(parts["first"])
     family = " ".join(parts["von"] + parts["last"] + parts["jr"])
 
-    return {"family": family, "given": given}
+    from bibtexparser.latexenc import latex_to_unicode
+
+    return {"family": latex_to_unicode(family), "given": latex_to_unicode(given)}
 
 
 def split_authors_name(authors: Union[str, List[str]],
@@ -534,7 +545,7 @@ def describe(document: Union[Document, Dict[str, Any]]) -> str:
         :confval:`document-description-format`.
     """
     return papis.format.format(
-        papis.config.getstring("document-description-format"),
+        papis.config.getformattedstring("document-description-format"),
         document, default=document.get("title", str(document)))
 
 

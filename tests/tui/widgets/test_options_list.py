@@ -29,11 +29,11 @@ def test_basic() -> None:
     # fg:ansired because it failed
     assert ol.get_tokens() == [
         ("", "hello\n"), ("", "world\n"), ("fg:ansired", "<bye\n")]
-    assert ol.get_line_prefix(2, None) == [
+    assert ol.get_line_prefix(2, 0) == [
         ("class:options_list.selected_margin", "|")]
-    assert ol.get_line_prefix(1, None) == [
+    assert ol.get_line_prefix(1, 0) == [
         ("class:options_list.unselected_margin", " ")]
-    assert ol.get_line_prefix(0, None) == [
+    assert ol.get_line_prefix(0, 0) == [
         ("class:options_list.marked_margin", "#")]
     assert ol.search_regex == re.compile(".*", re.I)
 
@@ -71,7 +71,7 @@ def test_basic() -> None:
     try:
         from prompt_toolkit.data_structures import Point
     except ImportError:
-        from prompt_toolkit.layout.screen import Point
+        from prompt_toolkit.layout.screen import Point  # type: ignore [attr-defined]
 
     ol.update_cursor()
     assert ol.cursor == Point(0, 0)

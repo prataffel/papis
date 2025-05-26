@@ -32,6 +32,7 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.linkcode",
     "sphinx_click.ext",
+    "sphinx_design",
     "papis.sphinx_ext",
 ]
 
@@ -55,7 +56,6 @@ autodoc_member_order = "bysource"
 nitpick_ignore_regex = [
     ["py:class", r".*SubRequest"],
     ]
-
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -96,7 +96,7 @@ release = version
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns = [
-    "default-settings.rst",
+    "default_settings.rst",
 ]
 
 # The reST default role (used for this markup: `text`) to use for all
@@ -116,6 +116,9 @@ exclude_patterns = [
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
+
+# By default, treat code blocks as plain text (no syntax highlighting)
+highlight_language = "text"
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []

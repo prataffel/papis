@@ -24,7 +24,7 @@ DBLP_BIB_FORMAT = "https://dblp.org/rec/{uri}.bib"
 DBLP_FORMATS = frozenset(["xml", "json", "jsonp"])
 
 # NOTE: caps due to bandwidth reasons
-DBLP_MAX_RESULS = 1000
+DBLP_MAX_RESULTS = 1000
 DBLP_MAX_COMPLETIONS = 1000
 
 # https://dblp.org/faq/What+types+does+dblp+use+for+publication+entries.html
@@ -93,9 +93,9 @@ def search(
 
     :result: the query response in the requested format.
     """
-    if not (0 < max_results <= DBLP_MAX_RESULS):
+    if not (0 < max_results <= DBLP_MAX_RESULTS):
         raise ValueError(
-            f"Cannot request more than {DBLP_MAX_RESULS} results (got {max_results})"
+            f"Cannot request more than {DBLP_MAX_RESULTS} results (got {max_results})"
             )
 
     if not (0 < max_completions <= DBLP_MAX_COMPLETIONS):
@@ -162,11 +162,11 @@ def is_valid_dblp_key(key: str) -> bool:
 @click.help_option("--help", "-h")
 @click.option(
     "--query", "-q",
-    help="General query",
+    help="General query.",
     default="")
 @click.option(
     "--max", "-m", "max_results",
-    help="Maximum number of results",
+    help="Maximum number of results.",
     default=30)
 def explorer(
         ctx: click.core.Context,
@@ -176,7 +176,7 @@ def explorer(
     Look for documents on `dblp.org <https://dblp.org/>`__.
 
     For example, to look for a document with the author "Albert Einstein" and
-    export it to a BibTeX file, you can call
+    export it to a BibTeX file, you can call:
 
     .. code:: sh
 

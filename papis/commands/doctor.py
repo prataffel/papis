@@ -30,15 +30,15 @@ implemented
 * ``html-tags``: checks that no HTML or XML tags (e.g. ``<a>``) appear in the keys
   provided by :confval:`doctor-html-tags-keys`.
 * ``key-type``: checks the type of keys provided by
-  :confval:`doctor-key-type-check-keys`, e.g. year should be an ``int``.
+  :confval:`doctor-key-type-keys`, e.g. year should be an ``int``.
   Lists can be automatically fixed (by splitting or joining) using the
-  :confval:`doctor-key-type-check-separator` setting.
+  :confval:`doctor-key-type-separator` setting.
 * ``keys-missing``: checks that the keys provided by
   :confval:`doctor-keys-missing-keys` exist in the document.
 * ``refs``: checks that the document has a valid reference (i.e. one that would
   be accepted by BibTeX and only contains valid characters).
 
-If any custom checks are implemented, you can get a complete list at runtime from
+If any custom checks are implemented, you can get a complete list at runtime from:
 
 .. code:: sh
 
@@ -47,54 +47,54 @@ If any custom checks are implemented, you can get a complete list at runtime fro
 Examples
 ^^^^^^^^
 
-- To run all available checks over all available documents in the library use
+- To run all available checks over all available documents in the library use:
 
     .. code:: sh
 
         papis doctor --all-checks --all
 
-  This will likely generate too many results, but it can be useful to output in JSON
+  This will likely generate too many results, but it can be useful to output in JSON:
 
     .. code:: sh
 
         papis doctor --all-checks --all --json
 
-- To check if all the files of a document are present, use
+- To check if all the files of a document are present, use:
 
     .. code:: sh
 
-        papis doctor --check files einstein
+        papis doctor --checks files einstein
 
 - To check if any unwanted HTML tags are present in your documents (especially
-  abstracts can be full of additional HTML or XML tags) use
+  abstracts can be full of additional HTML or XML tags) use:
 
     .. code:: sh
 
-        papis doctor --explain --check html-tags einstein
+        papis doctor --explain --checks html-tags einstein
 
   The ``--explain`` flag can be used to give additional details of checks that
-  failed. Some fixes such as this also have automatic fixers. Here, we can just
-  remove all the HTML tags by writing
+  failed. This check (and some others) also has automatic fixers. Here, we can
+  just remove all the HTML tags by writing:
 
     .. code:: sh
 
-        papis doctor --fix --check html-tags einstein
+        papis doctor --fix --checks html-tags einstein
 
 - If an automatic fix is not possible, some checks also have suggested
-  commands or tips to fix the issue that was found. For example, if a key
-  does not exist in the document, it can suggest editing the file to add it.
+  commands or tips to fix issues. For example, if a key does not exist
+  in the document, it can suggest editing the file to add it:
 
     .. code:: sh
 
-        papis doctor --suggestion --check keys-missing einstein
+        papis doctor --suggestion --checks keys-missing einstein
         >> Suggestion: papis edit --doc-folder /path/to/folder
 
   If this is the case, you can also run the following to automatically open
-  the ``info.yaml`` file for editing more complex changes
+  the ``info.yaml`` file for editing more complex changes:
 
     .. code:: sh
 
-        papis doctor --edit --check keys-missing einstein
+        papis doctor --edit --checks keys-missing einstein
 
 
 Implementing additional checks
@@ -102,7 +102,7 @@ Implementing additional checks
 
 A check is just a function that takes a document and returns a list of errors.
 A skeleton implementation that gets added to ``config.py``
-(see :ref:`config_py`) can be implemented as follows
+(see :ref:`config_py`) can be implemented as follows:
 
 .. code:: python
 
@@ -113,7 +113,7 @@ A skeleton implementation that gets added to ``config.py``
 
     register_check("my-custom-check", my_custom_check)
 
-Command-line Interface
+Command-line interface
 ^^^^^^^^^^^^^^^^^^^^^^
 
 .. click:: papis.commands.doctor:cli
@@ -145,7 +145,7 @@ CheckFn = Callable[[papis.document.Document], List["Error"]]
 
 
 class Error(NamedTuple):
-    """A detailed error error returned by a doctor check."""
+    """A detailed error returned by a doctor check."""
 
     #: Name of the check generating the error.
     name: str
@@ -259,13 +259,21 @@ def keys_missing_check(doc: papis.document.Document) -> List[Error]:
 
     :returns: a :class:`list` of errors, one for each missing key.
     """
+    from papis.defaults import NOT_SET
+
     folder = doc.get_main_folder() or ""
-    has_key = papis.config.get("doctor-keys-exist-keys") is not None
-    if has_key:
-        # FIXME: this is deprecated and should be removed
-        keys = papis.config.getlist("doctor-keys-exist-keys")
+    keys = papis.config.get("keys-exist-keys", section="doctor")
+    if keys is NOT_SET:
+        keys = papis.config.getlist("keys-missing-keys", section="doctor")
     else:
-        keys = papis.config.getlist("doctor-keys-missing-keys")
+        logger.warning("The configuration option 'doctor-keys-exist-keys' "
+                       "is deprecated and will be removed in the next version. "
+                       "Use 'doctor-keys-missing-keys' instead.")
+
+    if keys is None:
+        keys = []
+
+    keys.extend(papis.config.getlist("keys-missing-keys-extend", section="doctor"))
 
     def make_fixer(key: str) -> Optional[FixFn]:
         def fixer_author_from_author_list() -> None:
@@ -370,8 +378,10 @@ def duplicated_keys_check(doc: papis.document.Document) -> List[Error]:
     :returns: a :class:`list` of errors, one for each key with a value that already
         exist in the documents from the current query.
     """
-    keys = papis.config.getlist("doctor-duplicated-keys-keys")
     folder = doc.get_main_folder() or ""
+
+    keys = papis.config.getlist("duplicated-keys-keys", section="doctor")
+    keys.extend(papis.config.getlist("duplicated-keys-keys-extend", section="doctor"))
 
     results: List[Error] = []
     for key in keys:
@@ -407,7 +417,8 @@ def duplicated_values_check(doc: papis.document.Document) -> List[Error]:
     :returns: a :class:`list` of errors, one for each key with a value that
         has duplicate entries.
     """
-    keys = papis.config.getlist("doctor-duplicated-values-keys")
+    keys = papis.config.getlist("duplicated-values-keys", section="doctor")
+    keys.extend(papis.config.getlist("duplicated-values-keys-extend", section="doctor"))
     folder = doc.get_main_folder() or ""
 
     def make_fixer(key: str, entries: List[Any]) -> FixFn:
@@ -627,11 +638,11 @@ KEY_TYPE_CHECK_NAME = "key-type"
 
 def get_key_type_check_keys() -> Dict[str, type]:
     """
-    Check the `doctor-key-type-check-keys` configuration entry for correctness.
+    Check the `doctor-key-type-keys` configuration entry for correctness.
 
-    The :confval:`doctor-key-type-check-keys` configuration entry
+    The :confval:`doctor-key-type-keys` configuration entry
     defines a mapping of keys and their expected types. If the desired type is
-    a list, the :confval:`doctor-key-type-check-separator` setting
+    a list, the :confval:`doctor-key-type-separator` setting
     can be used to split an existing string (and, similarly, if the desired type
     is a string, it can be used to join a list of items).
 
@@ -639,9 +650,20 @@ def get_key_type_check_keys() -> Dict[str, type]:
     """
     import builtins
 
-    key_type_check_keys = papis.config.getlist("doctor-key-type-check-keys")
-    processed_key_type_check_keys: Dict[str, type] = {}
-    for value in key_type_check_keys:
+    from papis.defaults import NOT_SET
+
+    keys = papis.config.get("key-type-check-keys", section="doctor")
+    if keys is NOT_SET:
+        keys = papis.config.getlist("key-type-keys", section="doctor")
+    else:
+        keys = papis.config.getlist("key-type-check-keys", section="doctor")
+        logger.warning("The configuration option 'doctor-key-type-check-keys' "
+                       "is deprecated and will be removed in the next version. "
+                       "Use 'doctor-key-type-keys' instead.")
+
+    keys.extend(papis.config.getlist("key-type-keys-extend", section="doctor"))
+    processed_keys: Dict[str, type] = {}
+    for value in keys:
         if ":" not in value:
             logger.error("Invalid (key, type) pair: '%s'. Must be 'key:type'.",
                          value)
@@ -655,8 +677,9 @@ def get_key_type_check_keys() -> Dict[str, type]:
                 "Invalid type for key '%s': '%s'. Only builtin types are supported",
                 key, cls_name)
             continue
-        processed_key_type_check_keys[key] = cls
-    return processed_key_type_check_keys
+        processed_keys[key] = cls
+
+    return processed_keys
 
 
 def key_type_check(doc: papis.document.Document) -> List[Error]:
@@ -666,10 +689,19 @@ def key_type_check(doc: papis.document.Document) -> List[Error]:
     :returns: a :class:`list` of errors, one for each key does not have the
         expected type (if it exists).
     """
+    from papis.defaults import NOT_SET
+
     folder = doc.get_main_folder() or ""
 
     # NOTE: the separator can be quoted so that it can force whitespace
-    separator = papis.config.get("doctor-key-type-check-separator")
+    separator = papis.config.get("key-type-check-separator", section="doctor")
+    if separator is NOT_SET:
+        separator = papis.config.get("key-type-separator", section="doctor")
+    else:
+        logger.warning("The configuration option 'doctor-key-type-check-separator' "
+                       "is deprecated and will be removed in the next version. "
+                       "Use 'doctor-key-type-separator' instead.")
+
     separator = separator.strip("'").strip('"') if separator else None
 
     def make_fixer(key: str, cls: type) -> FixFn:
@@ -765,7 +797,10 @@ def html_codes_check(doc: papis.document.Document) -> List[Error]:
 
         return fixer
 
-    for key in papis.config.getlist("doctor-html-codes-keys"):
+    keys = papis.config.getlist("html-codes-keys", section="doctor")
+    keys.extend(papis.config.getlist("html-codes-keys-extend", section="doctor"))
+
+    for key in keys:
         value = doc.get(key)
         if value is None:
             continue
@@ -813,7 +848,7 @@ def html_tags_check(doc: papis.document.Document) -> List[Error]:
                     tag.replace_with(f" {tag.text.strip()} ")
 
             for tag in soup.find_all("jats:title"):
-                if tag.text.strip() == "Abstract":
+                if tag.text.strip().lower() in {"abstract", "summary", "synopsis"}:
                     tag.extract()
                 else:
                     # NOTE: these will get cleaned up in `make_fixer`
@@ -850,7 +885,10 @@ def html_tags_check(doc: papis.document.Document) -> List[Error]:
 
         return fixer
 
-    for key in papis.config.getlist("doctor-html-tags-keys"):
+    keys = papis.config.getlist("html-tags-keys", section="doctor")
+    keys.extend(papis.config.getlist("html-tags-keys-extend", section="doctor"))
+
+    for key in keys:
         value = doc.get(key)
         if value is None:
             logger.debug("Key '%s' not found in document: '%s'",
@@ -903,7 +941,8 @@ def gather_errors(documents: List[papis.document.Document],
     :returns: a list of all the errors gathered from the documents.
     """
     if not checks:
-        checks = papis.config.getlist("doctor-default-checks")
+        checks = papis.config.getlist("default-checks", section="doctor")
+        checks.extend(papis.config.getlist("default-checks-extend", section="doctor"))
 
     for check in checks:
         if check not in REGISTERED_CHECKS:
@@ -1042,25 +1081,27 @@ def run(doc: papis.document.Document,
 @papis.cli.query_argument()
 @papis.cli.sort_option()
 @click.option("-t", "--checks", "_checks",
-              default=lambda: papis.config.getlist("doctor-default-checks"),
+              default=lambda: (
+                  papis.config.getlist("default-checks", section="doctor")
+                  + papis.config.getlist("default-checks-extend", section="doctor")),
               multiple=True,
               type=click.Choice(registered_checks_names()
                                 + list(DEPRECATED_CHECK_NAMES)),
               help="Checks to run on every document.")
 @papis.cli.bool_flag("--json", "_json",
-                     help="Output the results in json format")
+                     help="Output the results in JSON format.")
 @papis.cli.bool_flag("--fix",
-                     help="Auto fix the errors with the auto fixer mechanism")
+                     help="Auto fix the errors with the auto fixer mechanism.")
 @papis.cli.bool_flag("-s", "--suggest",
-                     help="Suggest commands to be run for resolution")
+                     help="Suggest commands to be run for resolution.")
 @papis.cli.bool_flag("-e", "--explain",
-                     help="Give a short message for the reason of the error")
+                     help="Give a short message for the reason of the error.")
 @papis.cli.bool_flag("--edit",
                      help="Edit every file with the edit command.")
 @papis.cli.all_option()
 @papis.cli.doc_folder_option()
 @papis.cli.bool_flag("--all-checks", "all_checks",
-                     help="Run all available checks (ignores --checks)")
+                     help="Run all available checks (ignores --checks).")
 def cli(query: str,
         doc_folder: Tuple[str, ...],
         sort_field: Optional[str],
@@ -1073,7 +1114,7 @@ def cli(query: str,
         _json: bool,
         suggest: bool,
         all_checks: bool) -> None:
-    """Check for common problems in documents"""
+    """Check for common problems in documents."""
     documents = papis.cli.handle_doc_folder_query_all_sort(
         query, doc_folder, sort_field, sort_reverse, _all)
 

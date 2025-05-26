@@ -19,7 +19,7 @@ def get_data(query: str = "",
     logger.debug("Trying to retrieve ISBN from query: '%s'.", query)
 
     if service is None:
-        service = papis.config.get("isbn-service")
+        service = papis.config.getstring("isbn-service")
 
     if service not in ISBN_SERVICE_NAMES:
         logger.error("ISBN service '%s' is not known. Available services: '%s'.",
@@ -82,7 +82,7 @@ def explorer(ctx: click.core.Context, query: str, service: str) -> None:
     Look for documents using `isbnlib <https://isbnlib.readthedocs.io/en/latest/>`__.
 
     For example, to look for a document with the author "Albert Einstein" and
-    open it with Firefox, you can call
+    open it with Firefox, you can call:
 
     .. code:: sh
 

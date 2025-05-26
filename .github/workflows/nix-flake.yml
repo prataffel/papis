@@ -9,17 +9,17 @@ on:
     # 17:00 on Friday (UTC)
     - cron: "00 17 * * 5"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-nix-flake:
+    name: Test
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    # - uses: cachix/install-nix-action@v22
-    #   with:
-    #     github_access_token: ${{ secrets.GITHUB_TOKEN }}
-    # - uses: DeterminateSystems/magic-nix-cache-action@v3
     - uses: DeterminateSystems/nix-installer-action@main
-    - uses: DeterminateSystems/magic-nix-cache-action@main
     - uses: DeterminateSystems/flake-checker-action@main
     - run: nix build
     - run: nix flake check

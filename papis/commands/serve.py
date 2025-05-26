@@ -36,7 +36,7 @@ AnyFn = Callable[..., Any]
 try:
     # NOTE: the cgi module is being removed in python 3.13, so we add our own
     # little copy of FieldStorage when it's not available
-    from cgi import FieldStorage
+    from cgi import FieldStorage  # type: ignore[import-not-found,unused-ignore]
 except ImportError:
     from email.message import Message
     from dataclasses import dataclass, field
@@ -223,7 +223,6 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
                   sort_by: Optional[str] = None) -> None:
         import papis.web.tags
 
-        global TAGS_LIST
         libname = libname or papis.api.get_lib_name()
         self._handle_lib(libname)
         docs = papis.api.get_all_documents_in_lib(libname)
@@ -401,7 +400,9 @@ class PapisRequestHandler(http.server.BaseHTTPRequestHandler):
         return doc
 
     def _get_form(self, method: str = "POST") -> FieldStorage:
-        return FieldStorage(fp=self.rfile,
+        # FIXME: rfile is a BufferedIOBase and fp is a IO[Any]. This seems to be
+        # a bug in the type annotations for one of these classes
+        return FieldStorage(fp=self.rfile,  # type: ignore[arg-type]
                             headers=self.headers,
                             environ={"REQUEST_METHOD": method})
 

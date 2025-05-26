@@ -1,7 +1,7 @@
 Guidelines for Packaging
 ========================
 
-These are some loose notes about packing Papis meant to highlight the different
+These are some loose notes about packaging Papis meant to highlight the different
 components that are available and not to require a particular format.
 
 Version Numbering
@@ -18,12 +18,31 @@ have three numbers, `A.B.C`, where:
 Dependencies
 ------------
 
-See `pyproject.toml` for a complete list of dependencies and minimum versions.
+See `pyproject.toml` for a complete list of Python dependencies and minimum versions.
+Some optional dependencies are required for various Papis plugins
+
+* `Jinja2` is required for the `jinja` formatter, alternative to the default `python`
+  formatter.
+* `Whoosh` is required for the `whoosh` cache database, alternative to the default
+  `papis` database based on `pickle`.
+* `citeproc-py` is required for the `csl` exporter, which allows exporting through
+  the popular CSL (Citation Style Language) to styles like APA or MLA.
+* `chardet` is used by `beautifulsoup4` when parsing webpages to improve character
+  detection. This is recommended when making heavy use of Papis downloaders and
+  importers.
+* `markdownify` is used by the `zenodo` importer to clean up some of the project
+  descriptions. By default, the raw HTML is kept as is and will appear in the
+  document abstract or other such fields.
+
+We also have some additional optional non-Python dependencies:
+
+* `git`: The Git executable is required for the `papis git` command and other
+  Git integration in various commands.
 
 Wheels
 ------
 
-Papis uses the standard `pyproject.toml`-based format using `hatchling` as a
+Papis uses the standard `pyproject.toml`-based format and `hatchling` as a
 build backend. Wheels can be generated using
 ```
 python -m build --wheel --skip-dependency-check .

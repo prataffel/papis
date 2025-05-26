@@ -7,33 +7,33 @@ Examples
 
 Some examples of its usage are:
 
-- Export one of the documents matching the author with Einstein to BibTeX
+- Export one of the documents matching the author with Einstein to BibTeX:
 
 .. code:: sh
 
     papis export --format bibtex 'author : einstein'
 
-or export all of them
+or export all of them:
 
 .. code:: sh
 
     papis export --format bibtex --all 'author : einstein'
 
-- Export all documents to BibTeX and save them into a ``lib.bib`` file
+- Export all documents to BibTeX and save them into a ``lib.bib`` file:
 
-.. code::
+.. code:: sh
 
     papis export --all --format bibtex --out lib.bib
 
 - Export a folder of one of the documents matching the word ``krebs``
-  into a folder named ``interesting-document``
+  into a folder named ``interesting-document``:
 
-.. code::
+.. code:: sh
 
     papis export --folder --out interesting-document krebs
 
-  this will create the folder ``interesting-document`` containing the
-  ``info.yaml`` file and the linked documents.
+This will create the folder ``interesting-document`` containing the
+``info.yaml`` file and the linked documents.
 
 .. note::
 
@@ -42,7 +42,7 @@ or export all of them
     is stored in the file system. This is done for the convenience of third
     party apps.
 
-Command-line Interface
+Command-line interface
 ^^^^^^^^^^^^^^^^^^^^^^
 
 .. click:: papis.commands.export:cli
@@ -82,9 +82,15 @@ def run(documents: List[papis.document.Document], to_format: str) -> str:
     :param documents: A list of Papis documents
     :param to_format: what format to use
     """
-    ret_string = (
-        papis.plugin.get_extension_manager(EXPORTER_EXTENSION_NAME)[to_format]
-        .plugin(document for document in documents))
+    try:
+        ret_string = (
+            papis.plugin.get_extension_manager(EXPORTER_EXTENSION_NAME)[to_format]
+            .plugin(document for document in documents))
+    except KeyError as exc:
+        logger.error("Failed to load '%s' exporter. Cannot export to this format.",
+                     to_format, exc_info=exc)
+        return ""
+
     return str(ret_string)
 
 
@@ -96,16 +102,16 @@ def run(documents: List[papis.document.Document], to_format: str) -> str:
 @papis.cli.all_option()
 @papis.cli.bool_flag(
     "--folder",
-    help="Export document folder to share")
+    help="Export document folder to share.")
 @click.option(
     "-o",
     "--out",
-    help="Outfile or outdir",
+    help="Outfile or outdir.",
     default=None)
 @click.option(
     "-f",
     "--format", "fmt",
-    help="Format for the document",
+    help="Format for the document.",
     type=click.Choice(available_formats()),
     default="bibtex",)
 def cli(query: str,
@@ -116,7 +122,7 @@ def cli(query: str,
         out: str,
         fmt: str,
         _all: bool) -> None:
-    """Export a document from a given library"""
+    """Export a document from a given library."""
 
     documents = papis.cli.handle_doc_folder_query_all_sort(query,
                                                            doc_folder,
@@ -137,7 +143,7 @@ def cli(query: str,
 
     ret_string = run(documents, to_format=fmt)
 
-    if ret_string is not None and not folder:
+    if ret_string and not folder:
         if out is not None:
             logger.info("Dumping to '%s'.", out)
             with open(out, "a+") as fd:
@@ -168,21 +174,21 @@ def cli(query: str,
 @click.help_option("--help", "-h")
 @click.option(
     "-f", "--format", "fmt",
-    help="Format for the document",
+    help="Format for the document.",
     type=click.Choice(available_formats()),
     default="bibtex",)
 @click.option(
     "-o",
     "--out",
-    help="Outfile to write information to",
+    help="Outfile to write information to.",
     type=click.Path(),
     default=None,)
 def explorer(ctx: click.Context, fmt: str, out: str) -> None:
     """
     Export retrieved documents into various formats.
 
-    For example, to query Crossref an export all 200 documents to a YAML file,
-    you can call
+    For example, to query Crossref and export all 200 documents to a YAML file,
+    you can call:
 
     .. code:: sh
 

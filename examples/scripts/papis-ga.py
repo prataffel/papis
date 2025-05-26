@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# papis-short-help: Git add <document>
+# papis-short-help: Git add <document>.
 # Copyright © 2017 Alejandro Gallo. GPLv3
 
 """
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "query",
-        default=papis.config.get("default-query-string"),
+        default=papis.config.getstring("default-query-string"),
         help="A query to run over the documents")
     parser.add_argument(
         "-a", "--all", dest="all_", action="store_true",

@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any, Iterator
 import click
 
 import papis.config
+import papis.document
 import papis.importer
 import papis.filetype
 import papis.document
@@ -46,7 +47,7 @@ bibtex_standard_types = frozenset([
 bibtex_type_aliases = {
     "conference": "inproceedings",
     "electronic": "online",
-    "masterthesis": "thesis",
+    "mastersthesis": "thesis",
     "phdthesis": "thesis",
     "techreport": "report",
     "www": "online",
@@ -117,7 +118,7 @@ bibtex_standard_keys = frozenset([
 #: BibLaTeX field aliases (`Section 2.2.5 <manual_>`_).
 bibtex_key_aliases = {
     "address": "location",
-    "annote": "annotation",
+    "annote": "annotation",  # spell: disable
     "archiveprefix": "eprinttype",
     "journal": "journaltitle",
     "key": "sortkey",
@@ -358,7 +359,7 @@ class Importer(papis.importer.Importer):
 def explorer(ctx: click.core.Context, bibfile: str) -> None:
     """Import documents from a BibTeX file.
 
-    This explorer can be used as
+    This explorer can be used as:
 
     .. code:: sh
 
@@ -394,9 +395,9 @@ def bibtexparser_entry_to_papis(entry: Dict[str, Any]) -> Dict[str, Any]:
             }]),
         _k("author", [{
             "key": "author_list",
-            "action": lambda author: papis.document.split_authors_name([
-                latex_to_unicode(author)
-                ], separator="and")
+            "action": lambda author: (
+                papis.document.split_authors_name([author], separator="and")
+                )
             }]),
     ]
 
@@ -406,10 +407,10 @@ def bibtexparser_entry_to_papis(entry: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def bibtex_to_dict(bibtex: str) -> List[Dict[str, str]]:
+def bibtex_to_dict(bibtex: str) -> List[papis.document.DocumentLike]:
     """Convert a BibTeX file (or string) to a list of Papis-compatible dictionaries.
 
-    This will convert an entry like
+    This will convert an entry like:
 
     .. code:: tex
 
@@ -419,7 +420,7 @@ def bibtex_to_dict(bibtex: str) -> List[Dict[str, str]]:
             ...,
         }
 
-    to a dictionary such as
+    to a dictionary such as:
 
     .. code:: python
 
@@ -457,7 +458,7 @@ def ref_cleanup(ref: str) -> str:
 
     This uses the :data:`ref_allowed_characters` to remove any disallowed characters
     from the given *ref*. Furthermore, ``slugify`` is used to remove unicode
-    characters and ensure consistent use of the underscrore ``_`` as a separator.
+    characters and ensure consistent use of the underscore ``_`` as a separator.
 
     :returns: a reference without any disallowed characters.
     """
@@ -465,7 +466,7 @@ def ref_cleanup(ref: str) -> str:
     ref = slugify.slugify(ref,
                           lowercase=False,
                           word_boundary=False,
-                          separator="_",
+                          separator=papis.config.getstring("ref-word-separator"),
                           regex_pattern=ref_allowed_characters)
 
     return str(ref).strip()
@@ -492,9 +493,11 @@ def create_reference(doc: Dict[str, Any], force: bool = False) -> str:
         return ref
 
     # Otherwise, try to generate one somehow
-    ref_format = papis.config.get("ref-format")
-    if ref_format is not None:
-        ref = papis.format.format(str(ref_format), doc, default="")
+    try:
+        ref_format = papis.config.getformattedstring("ref-format")
+        ref = papis.format.format(ref_format, doc, default="")
+    except ValueError:
+        ref = ""
 
     if not ref:
         ref = str(doc.get("doi", ""))
@@ -510,6 +513,35 @@ def create_reference(doc: Dict[str, Any], force: bool = False) -> str:
 
     logger.debug("Generated ref '%s'.", ref)
     return ref_cleanup(ref)
+
+
+def author_list_to_author(doc: papis.document.Document,
+                          author_list: List[Dict[str, Any]]) -> str:
+    if not author_list:
+        return ""
+
+    result = []
+    fmt = "{au[family]}, {au[given]}"
+
+    for author in author_list:
+        if not isinstance(author, dict):
+            logger.error("Incorrect 'author_list' type (author is not a 'dict'): %s",
+                         papis.document.describe(doc))
+            continue
+
+        family = author.get("family")
+        given = author.get("given")
+        if family and given:
+            result.append(fmt.format(au=author))
+        elif family:
+            result.append(f"{{{family}}}")
+        elif given:
+            result.append(f"{{{given}}}")
+        else:
+            # NOTE: empty author, just skip it
+            pass
+
+    return " and ".join(result)
 
 
 def to_bibtex_multiple(documents: List[papis.document.Document]) -> Iterator[str]:
@@ -600,6 +632,8 @@ def to_bibtex(document: papis.document.Document, *, indent: int = 2) -> str:
                 logger.warning(
                     "'journal-key' key '%s' is not present for ref '%s'.",
                     journal_key, document["ref"])
+        elif bib_key == "author" and "author_list" in document:
+            bib_value = author_list_to_author(document, document["author_list"])
 
         override_key = f"{bib_key}_latex"
         if override_key in document:

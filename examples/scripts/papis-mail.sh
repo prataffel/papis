@@ -1,5 +1,5 @@
 #! /usr/bin/env bash
-# papis-short-help: Email a paper to a friend
+# papis-short-help: Email a paper to a friend.
 # Copyright © 2017 Alejandro Gallo. GPLv3
 
 if [[ $1 = "-h" ]]; then
@@ -24,5 +24,3 @@ echo "Zipping folder (${folder_name} => ${zip_name})"
 zip -r "${zip_name}" "${folder_name}"
 
 ${mail_agent} -a "${zip_name}"
-
-

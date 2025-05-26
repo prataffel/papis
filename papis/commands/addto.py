@@ -6,14 +6,14 @@ Examples
 
 For instance imagine you have two PDF files, ``a.pdf`` and ``b.pdf``
 that you want to add to a document that matches with the query string
-"einstein photon definition". Then you would use
+"einstein photon definition". Then you would use:
 
 .. code:: sh
 
     papis addto 'einstein photon definition' -f a.pdf -f b.pdf
 
 where the ``-f`` flag needs to be repeated for every file that is added. Remote
-files can be similarly added using
+files can be similarly added using:
 
 .. code:: sh
 
@@ -21,7 +21,7 @@ files can be similarly added using
 
 where the link needs to be to the actual remote PDF file.
 
-Command-line Interface
+Command-line interface
 ^^^^^^^^^^^^^^^^^^^^^^
 
 .. click:: papis.commands.addto:cli
@@ -49,59 +49,32 @@ logger = papis.logging.get_logger(__name__)
 
 def run(document: papis.document.Document,
         filepaths: List[str],
+        file_name: Optional[str] = None,
         link: bool = False,
         git: bool = False) -> None:
     doc_folder = document.get_main_folder()
     if not doc_folder or not os.path.exists(doc_folder):
         raise DocumentFolderNotFound(papis.document.describe(document))
 
-    from papis.paths import unique_suffixes
+    import shutil
+    from papis.paths import symlink, rename_document_files
 
-    nfiles = len(document.get_files())
-    gen_suffix = unique_suffixes(skip=nfiles - 1)
-    suffix = "" if nfiles == 0 else next(gen_suffix)
+    new_file_list = rename_document_files(
+        document, filepaths, file_name_format=file_name
+    )
 
-    from papis.downloaders import download_document
-    from papis.paths import symlink, get_document_file_name
-
-    tmp_file = None
-    new_file_list = []
-    for in_file_path in filepaths:
-        if (
-                in_file_path.startswith("http://")
-                or in_file_path.startswith("https://")):
-            local_in_file_path = download_document(in_file_path) or ""
-        else:
-            local_in_file_path = in_file_path
-
-        if not os.path.exists(local_in_file_path):
-            raise FileNotFoundError(f"File '{in_file_path}' not found")
-
-        # Rename the file in the staging area
-        new_filename = get_document_file_name(
-            document, local_in_file_path,
-            suffix=suffix)
-        out_file_path = os.path.join(doc_folder, new_filename)
-        new_file_list.append(new_filename)
-
+    for in_file_path, out_file_name in zip(filepaths, new_file_list):
+        out_file_path = os.path.join(doc_folder, out_file_name)
         if os.path.exists(out_file_path):
             logger.warning("File '%s' already exists. Skipping...", out_file_path)
             continue
 
         if link:
-            in_file_abspath = os.path.abspath(in_file_path)
-            logger.info("[SYMLINK] '%s' to '%s'.", in_file_abspath, out_file_path)
-            symlink(in_file_abspath, out_file_path)
+            logger.info("[LN] '%s' to '%s'.", in_file_path, out_file_name)
+            symlink(in_file_path, out_file_path)
         else:
-            import shutil
-            logger.info("[CP] '%s' to '%s'.", local_in_file_path, out_file_path)
-            shutil.copy(local_in_file_path, out_file_path)
-
-        if tmp_file:
-            os.unlink(tmp_file.name)
-            tmp_file = None
-
-        suffix = next(gen_suffix)
+            logger.info("[CP] '%s' to '%s'.", in_file_path, out_file_name)
+            shutil.copy(in_file_path, out_file_path)
 
     if "files" not in document:
         document["files"] = []
@@ -110,31 +83,31 @@ def run(document: papis.document.Document,
     papis.api.save_doc(document)
 
     if git:
-        for r in new_file_list + [document.get_info_file()]:
-            papis.git.add(doc_folder, r)
-        papis.git.commit(
+        papis.git.add_and_commit_resources(
             doc_folder,
+            new_file_list + [document.get_info_file()],
             "Add new files to '{}'".format(papis.document.describe(document)))
 
 
 @click.command("addto")
 @click.help_option("--help", "-h")
 @papis.cli.query_argument()
-@papis.cli.git_option(help="Add and commit files")
+@papis.cli.git_option(help="Add and commit files.")
 @papis.cli.sort_option()
 @click.option("-f",
               "--files",
-              help="File fullpaths to documents",
+              help="File fullpaths to documents.",
               multiple=True,
               type=click.Path(exists=True))
-@click.option("-u", "--urls", help="URLs to documents", multiple=True)
+@click.option("-u", "--urls", help="URLs to documents.", multiple=True)
 @click.option("--file-name",
-              help="File name for the document (papis format)",
+              help="File name format for the document.",
+              type=papis.cli.FormattedStringParamType(),
               default=None)
 @click.option(
     "--link/--no-link",
     help="Instead of copying the file to the library, create a link to "
-         "its original location",
+         "its original location.",
     default=False)
 @papis.cli.doc_folder_option()
 def cli(query: str,
@@ -146,7 +119,7 @@ def cli(query: str,
         sort_field: Optional[str],
         doc_folder: Tuple[str, ...],
         sort_reverse: bool) -> None:
-    """Add files to an existing document"""
+    """Add files to an existing document."""
     documents = papis.cli.handle_doc_folder_query_sort(
         query, doc_folder, sort_field, sort_reverse)
 
@@ -161,10 +134,7 @@ def cli(query: str,
 
     document = docs[0]
 
-    if file_name is not None:  # Use args if set
-        papis.config.set("add-file-name", papis.config.escape_interp(file_name))
-
     try:
-        run(document, files + urls, git=git, link=link)
+        run(document, files + urls, file_name=file_name, git=git, link=link)
     except Exception as exc:
         logger.error("Failed to add files.", exc_info=exc)

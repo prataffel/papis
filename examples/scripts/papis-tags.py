@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# papis-short-help: Search tags in the library
+# papis-short-help: Search tags in the library.
 # Copyright © 2018 Alejandro Gallo. GPLv3
 
 """
@@ -25,6 +25,8 @@ a document. However, for this script the following formats are supported:
 import re
 
 import click
+
+from typing import Set
 
 import papis.api
 import papis.cli
@@ -57,7 +59,7 @@ def main(query: str, confirm: bool) -> None:
     )
 
     # Create an empty tag list
-    tag_list = set()
+    tag_list: Set[str] = set()
     for doc in documents:
         tags = doc.get("tags")
         if tags is None:

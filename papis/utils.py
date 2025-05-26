@@ -88,10 +88,6 @@ def parmap(f: Callable[[A], B],
     :param np: number of processes to use when applying the function *f* in
         parallel. This value defaults to ``PAPIS_NP`` or :func:`os.cpu_count`.
     """
-
-    # FIXME: load singleton plugins here instead of on all the processes
-    _ = papis.format.get_formatter()
-
     if np is None:
         np = int(os.environ.get("PAPIS_NP", str(os.cpu_count())))
 
@@ -259,26 +255,27 @@ def clean_document_name(doc_path: str, is_path: bool = True) -> str:
 
 
 def locate_document_in_lib(document: papis.document.Document,
-                           library: Optional[str] = None) -> papis.document.Document:
+                           library: Optional[str] = None,
+                           *,
+                           unique_document_keys: Optional[List[str]] = None,
+                           ) -> papis.document.Document:
     """Locate a document in a library.
 
-    This function uses the :confval:`unique-document-keys`
-    to determine if the current document matches any document in the library.
-    The first document for which a key matches exactly will be returned.
+    This function falls back to :confval:`unique-document-keys` to determine if the
+    current document matches any document in the library. The first document
+    for which one of the keys in the list matches exactly will be returned.
 
-    :param document: the document to search for.
-    :param library: the name of a valid ``papis`` library.
+    :param library: the name of a valid Papis library.
+    :param unique_document_keys: a list of keys to match when locating a document.
+
     :returns: a full document as found in the library.
-
     :raises IndexError: No document found in the library.
     """
+    if unique_document_keys is None:
+        unique_document_keys = papis.config.getlist("unique-document-keys")
 
     db = papis.database.get(library_name=library)
-
-    comparing_keys = papis.config.getlist("unique-document-keys")
-    assert comparing_keys is not None
-
-    for key in comparing_keys:
+    for key in unique_document_keys:
         value = document.get(key)
         if value is None:
             continue
@@ -517,12 +514,11 @@ def collect_importer_data(
     only do the aggregation.
 
     :param batch: if *True*, overwrite data from previous importers, otherwise
-        ask the user to manually merge.
+        ask the user to manually merge. Note that files are always kept, even
+        if they potentially contain duplicates.
     :param use_files: if *True*, both metadata and files are collected
         from the importers.
     """
-    from papis.tui.utils import confirm
-
     # FIXME: this is here for backwards compatibility and should be removed
     # before we release the next version
     if only_data is not None and use_files is not None:
@@ -558,11 +554,7 @@ def collect_importer_data(
                         importer.name,
                         "\n\t".join(importer.ctx.files))
 
-            msg = f"Use this file? (from {importer.name})"
-            for f in importer.ctx.files:
-                open_file(f)
-                if batch or confirm(msg):
-                    ctx.files.append(f)
+            ctx.files.extend(importer.ctx.files)
 
     return ctx
 

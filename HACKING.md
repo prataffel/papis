@@ -43,6 +43,10 @@ The docs can be generated with
 make doc
 ```
 
+It is generally advisable to have `python-lsp-server` installed, as it enables
+your text editor to perform semantic operations on the codebase (eg Go to
+Definition, Replace All, refactorings, etc)
+
 ### Containers
 
 To quickly get things up and running, you can also use Docker with the included
@@ -95,7 +99,7 @@ Adding Configuration Options
 To add a new main option:
 
 1. Add a default value in `defaults.py` in the `settings` dictionary.
-2. Document the option in `doc/source/default-settings.rst`. Try to answer the
+2. Document the option in `doc/source/default_settings.rst`. Try to answer the
    following questions:
   - What is it for?
   - Where is it used?
@@ -170,7 +174,7 @@ Guidelines for Documentation
 
 You'll find the source code of the Papis documentation under the `doc/src`
 directory. The documentation uses the Sphinx documentation stack to build the
-manual and HTML pages and, to format the text, the [Sphinx reStrucTured
+manual and HTML pages and, to format the text, the [Sphinx reStructuredText
 markup](https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html).
 
 To build the documentation you can directly run `make doc` in the main folder or
@@ -198,7 +202,7 @@ A new command is added in `papis/commands/mycommand.py`. To document the command
      based on [Click](https://click.palletsprojects.com/) (this requires
      `sphinx-click`).
    - If the command defines some new options, they should be added to
-     `doc/source/default-settings.rst` instead.
+     `doc/source/default_settings.rst` instead.
 
 2. Add a documentation file to `doc/source/commands/mycommand.rst` to include
    the command in the documentation.

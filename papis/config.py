@@ -8,6 +8,7 @@ import platformdirs
 import papis.exceptions
 import papis.library
 import papis.logging
+from papis.strings import FormattedString
 
 logger = papis.logging.get_logger(__name__)
 
@@ -134,7 +135,12 @@ class Configuration(configparser.ConfigParser):
         configpy = get_configpy_file()
         if os.path.exists(configpy):
             with open(configpy) as fd:
-                exec(fd.read())
+                # NOTE: this includes the `globals()` so that the user config.py
+                # can add entries to the global namespace. This was motivated
+                # by adding filters to `Jinja2Formatter.env`, which may be separated
+                # into multiple functions that would not be found otherwise.
+                #   https://github.com/papis/papis/pull/930
+                exec(fd.read(), globals())
 
 
 def get_default_settings() -> PapisConfigType:
@@ -166,7 +172,7 @@ def register_default_settings(settings_dictionary: PapisConfigType) -> None:
 
     Notice that you can define sections or global options. For instance,
     let us suppose that a script called ``foobar`` defines some
-    configuration options. In the script there could be the following defined
+    configuration options. The script might define the following:
 
     .. code:: python
 
@@ -175,7 +181,7 @@ def register_default_settings(settings_dictionary: PapisConfigType) -> None:
         options = {"foobar": { "command": "open"}}
         papis.config.register_default_settings(options)
 
-    which can then be accessed globally through
+    which can then be accessed globally through:
 
     .. code:: python
 
@@ -260,7 +266,6 @@ def get_config_file() -> str:
         :func:`set_config_file`.
     """
 
-    global OVERRIDE_VARS
     if OVERRIDE_VARS["file"] is not None:
         config_file = OVERRIDE_VARS["file"]
     else:
@@ -272,8 +277,6 @@ def get_config_file() -> str:
 
 def set_config_file(filepath: str) -> None:
     """Override the main configuration file."""
-    global OVERRIDE_VARS
-
     logger.debug("Setting config file to '%s'.", filepath)
     OVERRIDE_VARS["file"] = filepath
 
@@ -357,11 +360,11 @@ def general_get(key: str,
 
     # Check data type for setting getter method
     method: Callable[[Any, Any], Any]
-    if data_type == int:
+    if data_type is int:
         method = config.getint
-    elif data_type == float:
+    elif data_type is float:
         method = config.getfloat
-    elif data_type == bool:
+    elif data_type is bool:
         method = config.getboolean
     else:
         method = config.get
@@ -405,10 +408,16 @@ def general_get(key: str,
             value = method(section_name, key_name)
 
     if value is None:
-        try:
-            return default_settings[section or global_section][key]
-        except KeyError as exc:
-            raise papis.exceptions.DefaultSettingValueMissing(qualified_key) from exc
+        if section is not None:
+            section_settings = default_settings.get(section, {})
+            if key in section_settings:
+                return section_settings[key]
+
+        general_settings = default_settings.get(global_section, {})
+        if qualified_key in general_settings:
+            return general_settings[qualified_key]
+
+        raise papis.exceptions.DefaultSettingValueMissing(qualified_key)
 
     return value
 
@@ -472,6 +481,62 @@ def getstring(key: str, section: Optional[str] = None) -> str:
         raise ValueError("Key '{}' should be a string: '{}'".format(key, result))
 
     return str(result)
+
+
+def getformattedstring(key: str, section: Optional[str] = None) -> FormattedString:
+    """Retrieve a formatted string value from the configuration file.
+
+    Formatted strings use the :class:`~papis.strings.FormattedString` class to
+    define a string that should be formatted by a specific
+    :class:`~papis.format.Formatter`. For configuration options, such strings
+    can be defined in the configuration file as::
+
+        [settings]
+        multiple-authors-format = {au[family]}, {au[given]}
+        multiple-authors-format.python = {au[family]}, {au[given]}
+        multiple-authors-format.jinja2 = {{ au[family] }}, {{ au[given] }}
+
+    i.e. like ``key[.formatter]``. If no formatter is provided in the key name,
+    the default formatter is used, as defined by :confval:`formatter`.
+    Formatters are checked in alphabetical order and the last one is returned.
+
+        >>> set("add-open", "hello world")
+        >>> r = getformattedstring("add-open")
+        >>> r.formatter
+        'python'
+
+        >>> set("add-open", FormattedString("python", "hello world"))
+        >>> r = getformattedstring("add-open")
+        >>> r.formatter
+        'python'
+
+        >>> set("add-open.python", "hello world")
+        >>> r = getformattedstring("add-open")
+        >>> r.formatter
+        'python'
+    """
+    from papis.format import get_available_formatters, get_default_formatter
+
+    formatter = get_default_formatter()
+    result: Optional[str] = None
+
+    for f in get_available_formatters():
+        try:
+            tmp = general_get(f"{key}.{f}", section=section, data_type=str)
+        except papis.exceptions.DefaultSettingValueMissing:
+            pass
+        else:
+            result, formatter = tmp, f
+
+    if result is None:
+        result = general_get(key, section=section, data_type=str)
+
+    if isinstance(result, FormattedString):
+        return result
+    elif isinstance(result, str):
+        return FormattedString(formatter, result)
+    else:
+        raise ValueError(f"Key '{key}' should be a string: '{result}'")
 
 
 def getlist(key: str, section: Optional[str] = None) -> List[str]:
@@ -630,8 +695,6 @@ def get_lib() -> papis.library.Library:
     If the ``PAPIS_LIB`` environment variable is defined, this is the
     library name (or path) that will be taken as a default.
     """
-    global CURRENT_LIBRARY
-
     libname = os.environ.get("PAPIS_LIB")
     if libname:
         set_lib_from_name(libname)
