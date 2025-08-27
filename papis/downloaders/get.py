@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 
 import papis.downloaders.base
 
@@ -11,7 +10,7 @@ class Downloader(papis.downloaders.Downloader):
         super().__init__(url, name="get", priority=0)
 
     @classmethod
-    def match(cls, url: str) -> Optional[papis.downloaders.Downloader]:
+    def match(cls, url: str) -> papis.downloaders.Downloader | None:
         """
         >>> Downloader.match('https://wha2341!@#!@$%!@#file.pdf') is None  # spell: disable
         False
@@ -21,7 +20,7 @@ class Downloader(papis.downloaders.Downloader):
         True
         """  # noqa: E501
         endings = "pdf|djvu|epub|mobi|jpg|png|md"
-        m = re.match(r"^http.*\.(%s)$" % endings, url, re.IGNORECASE)
+        m = re.match(fr"^http.*\.({endings})$", url, re.IGNORECASE)
         if m:
             d = Downloader(url)
 
@@ -33,5 +32,5 @@ class Downloader(papis.downloaders.Downloader):
         else:
             return None
 
-    def get_document_url(self) -> Optional[str]:
+    def get_document_url(self) -> str | None:
         return self.uri

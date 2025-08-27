@@ -4,7 +4,6 @@ dist/papis/_internal into the XML manifest that is used to create the MSI."""
 import hashlib
 import os
 import uuid
-from typing import Optional
 
 
 def get_id(*path_components: str) -> str:
@@ -18,7 +17,7 @@ def get_id(*path_components: str) -> str:
     This function uses the MD5 hash of the joined *path_components* as the identifier.
     This is guaranteed to be less than 72 characters and only uses letters and
     numbers.
-    """  # noqa: E501
+    """
 
     # NOTE: this needs to do an `os.path.join` so that the hash of
     # `get_id("root", "subdir")` matches the hash of `get_id("root/subdir")`
@@ -32,7 +31,7 @@ def get_id(*path_components: str) -> str:
 
 def render_template(template: str,
                     outfile: str, *,
-                    version: Optional[str] = None) -> None:
+                    version: str | None = None) -> None:
     from xml.etree import ElementTree
 
     if version is None:

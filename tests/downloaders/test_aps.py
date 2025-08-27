@@ -1,10 +1,10 @@
 import os
+
 import pytest
 
 import papis.downloaders
 from papis.downloaders.aps import Downloader
-
-from papis.testing import TemporaryConfiguration, ResourceCache
+from papis.testing import ResourceCache, TemporaryConfiguration
 
 APS_URLS = (
     "https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.122.145901",
@@ -25,8 +25,8 @@ def test_aps_fetch(tmp_config: TemporaryConfiguration,
     assert down is not None
 
     uid = os.path.basename(url)
-    infile = "APS_{}.html".format(uid)
-    outfile = "APS_{}_Out.json".format(uid)
+    infile = f"APS_{uid}.html"
+    outfile = f"APS_{uid}_Out.json"
 
     monkeypatch.setattr(down, "_get_body",
                         lambda: resource_cache.get_remote_resource(infile, url))

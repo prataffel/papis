@@ -93,9 +93,15 @@ Developer API reference
 ``papis.format``
 ----------------
 
-.. autoclass:: papis.strings.FormattedString
+.. autoclass:: papis.strings.FormatPattern
 
 .. automodule:: papis.format
+    :members:
+
+.. automodule:: papis.format.python
+    :members:
+
+.. automodule:: papis.format.jinja
     :members:
 
 ``papis.git``

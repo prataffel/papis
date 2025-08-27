@@ -1,13 +1,14 @@
 import os
 from contextlib import suppress
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import papis.config
 import papis.logging
-from papis.document import Document
 
 if TYPE_CHECKING:
     from citeproc.source import Date, Reference
+
+    import papis.document
 
 logger = papis.logging.get_logger(__name__)
 
@@ -51,7 +52,7 @@ def _download_style(name: str) -> None:
     logger.info("Style '%s' downloaded to '%s'.", name, style_path)
 
 
-def _parse_date(doc: Document) -> Optional["Date"]:
+def _parse_date(doc: "papis.document.Document") -> "Date | None":
     """Extract a date from a document."""
 
     if "year" not in doc:
@@ -84,7 +85,7 @@ def _parse_date(doc: Document) -> Optional["Date"]:
     return Date(**date)
 
 
-def to_csl(doc: Document) -> "Reference":
+def to_csl(doc: "papis.document.Document") -> "Reference":
     """Convert a document into a dictionary of keys supported by :mod:`citeproc`.
 
     This function only converts keys that are supported, while other keys in the
@@ -158,9 +159,9 @@ def normalize_style_path(name: str) -> str:
     return ""
 
 
-def export_document(doc: Document,
-                    style_name: Optional[str] = None,
-                    formatter_name: Optional[str] = None) -> str:
+def export_document(doc: "papis.document.Document",
+                    style_name: str | None = None,
+                    formatter_name: str | None = None) -> str:
     if style_name is None:
         style_name = papis.config.getstring("csl-style")
 
@@ -182,8 +183,13 @@ def export_document(doc: Document,
     source = BibliographySource(doc)
     source.add(to_csl(doc))
 
-    from citeproc import CitationStylesStyle
-    from citeproc import CitationStylesBibliography, Citation, CitationItem, formatter
+    from citeproc import (
+        Citation,
+        CitationItem,
+        CitationStylesBibliography,
+        CitationStylesStyle,
+        formatter,
+    )
 
     fmt = getattr(formatter, formatter_name, None)
     if fmt is None:
@@ -216,7 +222,9 @@ def export_document(doc: Document,
     return ""
 
 
-def exporter(documents: List[Document]) -> str:
+def exporter(documents: list["papis.document.Document"]) -> str:
+    """Export documents using the CSL (Citation Style Language) styles."""
+
     try:
         import citeproc  # noqa: F401
     except ImportError:

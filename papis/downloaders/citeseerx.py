@@ -1,10 +1,10 @@
 import os
 import re
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar
 
-import papis.utils
 import papis.document
 import papis.downloaders
+import papis.utils
 
 _K = papis.document.KeyConversionPair
 article_key_conversion = [
@@ -21,7 +21,7 @@ article_key_conversion = [
 
 
 class Downloader(papis.downloaders.Downloader):
-    """Retrieve documents from `CiteSeerX <https://citeseerx.ist.psu.edu>`__"""  # noqa: E501 # spell: disable
+    """Retrieve documents from `CiteSeerX <https://citeseerx.ist.psu.edu>`__"""  # spell: disable
 
     # NOTE: not sure if this API is open for the public, but it seems to work
     API_URL: ClassVar[str] = "https://citeseerx.ist.psu.edu/api/paper"
@@ -43,7 +43,7 @@ class Downloader(papis.downloaders.Downloader):
 
     @classmethod
     def match(cls,
-              url: str) -> Optional[papis.downloaders.Downloader]:
+              url: str) -> papis.downloaders.Downloader | None:
         return (Downloader(url)
                 if re.match(r".*citeseerx\.ist\.psu\.edu.*", url)  # spell: disable
                 else None)
@@ -60,7 +60,7 @@ class Downloader(papis.downloaders.Downloader):
 
         return response.content
 
-    def get_data(self) -> Dict[str, Any]:
+    def get_data(self) -> dict[str, Any]:
         import json
         data = json.loads(self._get_raw_data().decode())
 
@@ -70,5 +70,5 @@ class Downloader(papis.downloaders.Downloader):
         else:
             return {}
 
-    def get_document_url(self) -> Optional[str]:
+    def get_document_url(self) -> str | None:
         return self.DOCUMENT_URL.format(pid=self.pid)

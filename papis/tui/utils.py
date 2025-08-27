@@ -1,10 +1,10 @@
 import re
-from typing import Optional, List, Callable, Any, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any
 
 import click
 
 from papis.api import T
-
 
 # Highlighting style used by pygments. This is a copy of the prompt_toolkit
 # default style, but changed to use ansi colors.
@@ -55,7 +55,7 @@ PAPIS_PYGMENTS_DEFAULT_STYLE = {
 
 def confirm(prompt_string: str,
             yes: bool = True,
-            bottom_toolbar: Optional[str] = None) -> bool:
+            bottom_toolbar: str | None = None) -> bool:
     """Confirm with user input
 
     :param prompt_string: Question or text that the user gets.
@@ -122,9 +122,9 @@ def yes_no_dialog(title: str, text: str) -> Any:
 def prompt(
         prompt_string: str,
         default: str = "",
-        bottom_toolbar: Optional[str] = None,
+        bottom_toolbar: str | None = None,
         multiline: bool = False,
-        validator_function: Optional[Callable[[str], bool]] = None,
+        validator_function: Callable[[str], bool] | None = None,
         dirty_message: str = "") -> str:
     """Prompt user for input
 
@@ -159,9 +159,9 @@ def prompt(
 
 
 def progress_bar(iterable: Iterable[T]) -> Iterable[T]:
-    from prompt_toolkit.styles import Style
     from prompt_toolkit.shortcuts import ProgressBar
     from prompt_toolkit.shortcuts.progress_bar import formatters
+    from prompt_toolkit.styles import Style
 
     # NOTE: this style is chosen to make it look like the default tqdm bar
     style = Style.from_dict({"bar-a": "reverse"})
@@ -181,24 +181,25 @@ def progress_bar(iterable: Iterable[T]) -> Iterable[T]:
     ]
 
     with ProgressBar(style=style, formatters=fmt) as pb:
-        for item in pb(iterable):
-            yield item
+        yield from pb(iterable)
 
 
-def get_range(range_str: str) -> List[int]:
+def get_range(range_str: str) -> list[int]:
+    from itertools import chain
+
     range_regex = re.compile(r"(\d+)-?(\d+)?")
     try:
-        return sum([
-            list(range(int(p[0]), int(p[1] if p[1] else p[0]) + 1))
-            for p in range_regex.findall(range_str)], [])
+        return list(chain.from_iterable(
+            range(int(p[0]), int(p[1] if p[1] else p[0]) + 1)
+            for p in range_regex.findall(range_str)))
     except ValueError:
         return []
 
 
-def select_range(options: List[Any],
+def select_range(options: list[Any],
                  message: str,
                  accept_none: bool = False,
-                 bottom_toolbar: Optional[str] = None) -> List[int]:
+                 bottom_toolbar: str | None = None) -> list[int]:
     for i, o in enumerate(options):
         click.echo(f"{i}. {o}")
 

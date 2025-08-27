@@ -1,7 +1,7 @@
 import pytest
 
-from papis.testing import TemporaryConfiguration
 from papis.downloaders.thesesfr import Downloader
+from papis.testing import TemporaryConfiguration
 
 
 def test_match(tmp_config: TemporaryConfiguration) -> None:
@@ -22,7 +22,7 @@ def test_match(tmp_config: TemporaryConfiguration) -> None:
     ("query", "expected"),
     [
         ("https://www.theses.fr/2014TOU30305", "2014TOU30305"),  # spell: disable
-        ("https://www.theses.fr/2014TOU30305.bib/?asdf=2", "2014TOU30305"),  # noqa: E501 # spell: disable
+        ("https://www.theses.fr/2014TOU30305.bib/?asdf=2", "2014TOU30305"),  # spell: disable
         ("2014TOU30305", "2014TOU30305"),  # spell: disable
         ("2014TOU", None),  # spell: disable
     ],

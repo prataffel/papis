@@ -1,20 +1,19 @@
-from typing import Any, List, Callable
+from collections.abc import Callable
+from typing import Any
 
 import dominate.tags as t
 import dominate.util as tu
 
-import papis.commands.doctor
-
-import papis.web.paths as wp
-import papis.web.html as wh
-import papis.web.docform
-import papis.web.header
-import papis.web.notes
-import papis.web.info
 import papis.web.citations
-import papis.web.pdfjs
 import papis.web.djvujs
+import papis.web.docform
 import papis.web.epubjs
+import papis.web.header
+import papis.web.html as wh
+import papis.web.info
+import papis.web.notes
+import papis.web.paths as wp
+import papis.web.pdfjs
 
 
 def _click_tab_selector_link_in_url() -> None:
@@ -30,12 +29,16 @@ def _click_tab_selector_link_in_url() -> None:
 
 def html(libname: str, doc: papis.document.Document) -> t.html_tag:
     """
-    View of a single document to edit the information of the yaml file,
+    View of a single document to edit the information of the YAML file,
     and maybe in the future to update the information.
     """
-    checks = papis.commands.doctor.registered_checks_names()
-    errors = papis.commands.doctor.gather_errors([doc], checks)
+    from papis.commands.doctor import gather_errors, registered_checks_names
+
+    checks = registered_checks_names()
+    errors = gather_errors([doc], checks)
     libfolder = papis.config.get_lib_from_name(libname).paths[0]
+
+    from papis.exporters.bibtex import exporter as bibtex
 
     with papis.web.header.main_html_document(doc["title"]) as result:
         with result.body:
@@ -61,7 +64,7 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
                 with t.ul(cls="nav nav-tabs"):
 
                     def _tab_element(content: Callable[..., t.html_tag],
-                                     args: List[Any],
+                                     args: list[Any],
                                      href: str,
                                      active: bool = False) -> t.html_tag:
                         with t.li(cls="active nav-item") as result:
@@ -114,18 +117,18 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
                                role="tabpanel",
                                aria_labelledby="bibtex-form",
                                cls="tab-pane fade"):
-                        _bibtex_id = "bibtex-source"
-                        t.div(papis.bibtex.to_bibtex(doc),
-                              id=_bibtex_id,
+                        bibtex_id = "bibtex-source"
+                        t.div(bibtex([doc]),
+                              id=bibtex_id,
                               width="100%",
                               height=100,
                               style="min-height: 500px",
                               cls="form-control")
-                        _script = f"""
-                            let bib_editor = ace.edit("{_bibtex_id}");
+                        script = f"""
+                            let bib_editor = ace.edit("{bibtex_id}");
                             bib_editor.session.setMode("ace/mode/bibtex");
                         """
-                        t.script(tu.raw(_script),
+                        t.script(tu.raw(script),
                                  charset="utf-8",
                                  type="text/javascript")
 
@@ -136,9 +139,9 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
                         papis.web.notes.widget(libname, doc)
 
                     for i, fpath in enumerate(doc.get_files()):
-                        _unquoted_file_path = wp.file_server_path(fpath,
-                                                                  libfolder,
-                                                                  libname)
+                        unquoted_file_path = wp.file_server_path(fpath,
+                                                                 libfolder,
+                                                                 libname)
 
                         with t.div(id=f"file-tab-{i}",
                                    role="tabpanel",
@@ -146,18 +149,18 @@ def html(libname: str, doc: papis.document.Document) -> t.html_tag:
                                    cls="tab-pane fade"):
 
                             if fpath.endswith("pdf"):
-                                papis.web.pdfjs.widget(_unquoted_file_path)
+                                papis.web.pdfjs.widget(unquoted_file_path)
 
                             if fpath.endswith("djvu"):
-                                papis.web.djvujs.widget(_unquoted_file_path)
+                                papis.web.djvujs.widget(unquoted_file_path)
 
                             if fpath.endswith("epub"):
-                                papis.web.epubjs.widget(_unquoted_file_path)
+                                papis.web.epubjs.widget(unquoted_file_path)
 
                             elif (fpath.endswith("png")
                                   or fpath.endswith("jpg")):
                                 with t.div():
-                                    t.img(src=_unquoted_file_path)
+                                    t.img(src=unquoted_file_path)
 
                     with t.div(id="citations-tab",
                                role="tabpanel",

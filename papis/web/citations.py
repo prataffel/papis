@@ -1,21 +1,21 @@
-from typing import Any, Callable, Dict
 import urllib.parse
+from collections.abc import Callable
+from typing import Any
 
 import dominate.tags as t
 
-import papis.document
 import papis.citations
-
-import papis.web.timeline
+import papis.document
 import papis.web.document
 import papis.web.html as wh
+import papis.web.timeline
 
 
 def render(doc: papis.document.Document,
            libname: str,
            libfolder: str,
            timeline_id: str,
-           fetch_path: Callable[[str, Dict[str, Any]], str],
+           fetch_path: Callable[[str, dict[str, Any]], str],
            checker: Callable[[papis.document.Document], bool],
            getter: Callable[[papis.document.Document],
                             papis.citations.Citations],

@@ -1,6 +1,5 @@
 import os
 import re
-from typing import Optional
 
 import filetype
 
@@ -16,7 +15,7 @@ class DjVu(filetype.Type):      # type: ignore[misc]
     def __init__(self) -> None:
         super().__init__(mime=self.MIME, extension=self.EXTENSION)
 
-    def match(self, buf: bytes) -> bool:
+    def match(self, buf: bytes) -> bool:  # noqa: PLR6301
         # https://en.wikipedia.org/wiki/List_of_file_signatures
         # magic: AT&TFORMXXXXDJV[UM]
         return (
@@ -36,7 +35,7 @@ if filetype.get_type(DjVu.MIME) is None:
     filetype.add_type(DjVu())
 
 
-def guess_content_extension(content: bytes) -> Optional[str]:
+def guess_content_extension(content: bytes) -> str | None:
     """Guess the extension from (potential) file contents.
 
     This method attempts to look at known file signatures to determine the file
@@ -50,7 +49,7 @@ def guess_content_extension(content: bytes) -> Optional[str]:
     return str(kind.extension) if kind is not None else None
 
 
-def guess_document_extension(document_path: str) -> Optional[str]:
+def guess_document_extension(document_path: str) -> str | None:
     """Guess the extension of a given file at *document_path*.
 
     :param document_path: path to an existing file.

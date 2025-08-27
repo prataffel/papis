@@ -61,25 +61,23 @@ Command-line interface
     :prog: papis browse
 """
 
-from typing import Optional, Tuple
-
 import click
 
 import papis
-import papis.utils
-import papis.config
 import papis.cli
-import papis.pick
+import papis.config
 import papis.database
-import papis.strings
 import papis.document
 import papis.logging
+import papis.pick
+import papis.strings
+import papis.utils
 
 logger = papis.logging.get_logger(__name__)
 
 
 def run(document: papis.document.Document,
-        browse: bool = True) -> Optional[str]:
+        browse: bool = True) -> str | None:
     """Open the document's URL in the selected :confval:`browser`.
 
     :arg browse: if *True*, the URL is opened after it is found, instead of just
@@ -114,7 +112,7 @@ def run(document: papis.document.Document,
         import urllib.parse
         params = {
             "q": papis.format.format(
-                papis.config.getformattedstring("browse-query-format"),
+                papis.config.getformatpattern("browse-query-format"),
                 document,
                 default="{} {}".format(document["author"], document["title"]))
         }
@@ -147,8 +145,8 @@ def cli(query: str,
         key: str,
         _all: bool,
         _print: bool,
-        doc_folder: Tuple[str, ...],
-        sort_field: Optional[str],
+        doc_folder: tuple[str, ...],
+        sort_field: str | None,
         sort_reverse: bool) -> None:
     """Open a document URL in a browser."""
     documents = papis.cli.handle_doc_folder_query_all_sort(query,

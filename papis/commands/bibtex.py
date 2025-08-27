@@ -124,17 +124,16 @@ Command-line interface
 import os
 import re
 
-from typing import List, Optional, Tuple
 import click
 
-import papis.database
 import papis.cli
 import papis.config
+import papis.database
 import papis.format
 import papis.logging
 import papis.strings
 from papis.commands import AliasedGroup
-from papis.commands.explore import get_explorer_by_name
+from papis.explorers.bibtex import cli as bibtex_explorer
 
 logger = papis.logging.get_logger(__name__)
 
@@ -144,8 +143,6 @@ papis.config.register_default_settings({"bibtex": {
     "auto-read": "",
     "default-save-bibfile": ""
 }})
-
-BIBTEX_EXPLORER = get_explorer_by_name("bibtex")
 
 
 @click.group("bibtex", cls=AliasedGroup, chain=True)
@@ -166,12 +163,10 @@ def cli(ctx: click.Context, no_auto_read: bool) -> None:
     bibfile = papis.config.getstring("default-read-bibfile", section="bibtex")
     if not no_auto_read and bibfile and os.path.exists(bibfile):
         logger.info("Auto-reading '%s'.", bibfile)
-        if BIBTEX_EXPLORER and BIBTEX_EXPLORER.callback:
-            BIBTEX_EXPLORER.callback(bibfile)
+        bibtex_explorer.callback(bibfile)
 
 
-if BIBTEX_EXPLORER:
-    cli.add_command(BIBTEX_EXPLORER, "read")
+cli.add_command(bibtex_explorer, "red")
 
 
 @cli.command("add")
@@ -187,7 +182,7 @@ if BIBTEX_EXPLORER:
 def cli_add(ctx: click.Context,
             query: str,
             _all: bool,
-            refs_file: Optional[str]) -> None:
+            refs_file: str | None) -> None:
     """Add documents from the library to the BibTeX file."""
     from papis.api import get_documents_in_lib, pick_doc
 
@@ -202,7 +197,7 @@ def cli_add(ctx: click.Context,
         found = 0
         logger.info("Adding and querying from reference file: '%s'.", refs_file)
 
-        with open(refs_file) as fd:
+        with open(refs_file, encoding="utf-8") as fd:
             references = fd.readlines()
 
         for ref in progress_bar(references):
@@ -236,7 +231,7 @@ def cli_add(ctx: click.Context,
               multiple=True)
 @click.pass_context
 def cli_update(ctx: click.Context, _all: bool,
-               fromdb: bool, todb: bool, keys: List[str]) -> None:
+               fromdb: bool, todb: bool, keys: list[str]) -> None:
     """Update documents from and to the library."""
     if fromdb and todb:
         logger.error("Cannot pass both '--from' and '--to'.")
@@ -281,7 +276,7 @@ def cli_update(ctx: click.Context, _all: bool,
         if fromdb:
             logger.info("Updating BibTeX entry from library.")
             if keys:
-                docs[j].update({k: libdoc[k] for k in keys if k in libdoc})
+                docs[j].update({k: libdoc[k] for k in keys if k in libdoc})  # noqa: PLR1736
             else:
                 docs[j] = libdoc.copy()
 
@@ -342,11 +337,11 @@ def cli_open(ctx: click.Context) -> None:
 @click.option("-s", "--set", "set_tuples",
               help="Update a document with key value pairs.",
               multiple=True,
-              type=(str, papis.cli.FormattedStringParamType()),)
+              type=(str, papis.cli.FormatPatternParamType()),)
 @papis.cli.all_option()
 @click.pass_context
 def cli_edit(ctx: click.Context,
-             set_tuples: List[Tuple[str, str]],
+             set_tuples: list[tuple[str, str]],
              _all: bool) -> None:
     """
     Edit documents by adding keys or opening an editor.
@@ -385,7 +380,7 @@ def cli_edit(ctx: click.Context,
 
         if set_tuples:
             for k, v in set_tuples:
-                kp, vp = papis.strings.process_formatted_string_pair(k, v)
+                kp, vp = papis.strings.process_format_pattern_pair(k, v)
                 try:
                     located[kp] = papis.format.format(vp, located)
                 except papis.format.FormatFailedError as exc:
@@ -405,7 +400,7 @@ def cli_edit(ctx: click.Context,
 @click.help_option("-h", "--help")
 @click.option("-k", "--key", default=None, help="doi, url, ...")
 @click.pass_context
-def cli_browse(ctx: click.Context, key: Optional[str]) -> None:
+def cli_browse(ctx: click.Context, key: str | None) -> None:
     """Browse a document in the document list."""
     from papis.api import pick_doc
 
@@ -435,7 +430,7 @@ def cli_rm(ctx: click.Context) -> None:
 @click.help_option("-h", "--help")
 @click.option("-o", "--out", help="Output ref to a file.", default=None)
 @click.pass_context
-def cli_ref(ctx: click.Context, out: Optional[str]) -> None:
+def cli_ref(ctx: click.Context, out: str | None) -> None:
     """Print the reference for a document."""
     from papis.api import pick_doc
 
@@ -448,7 +443,7 @@ def cli_ref(ctx: click.Context, out: Optional[str]) -> None:
 
     ref = docs[0]["ref"]
     if out:
-        with open(out, "w+") as fd:
+        with open(out, "w+", encoding="utf-8") as fd:
             fd.write(ref)
     else:
         click.echo(ref)
@@ -474,7 +469,7 @@ def cli_save(ctx: click.Context, bibfile: str, force: bool) -> None:
 
     from papis.commands.export import run
 
-    with open(bibfile, "w+") as fd:
+    with open(bibfile, "w+", encoding="utf-8") as fd:
         logger.info("Saving %d documents in '%s'.", len(docs), bibfile)
         fd.write(run(docs, to_format="bibtex"))
 
@@ -488,7 +483,7 @@ def cli_save(ctx: click.Context, bibfile: str, force: bool) -> None:
               required=True)
 @papis.cli.bool_flag("-r", "--reverse", help="Reverse the sort order.")
 @click.pass_context
-def cli_sort(ctx: click.Context, key: Optional[str], reverse: bool) -> None:
+def cli_sort(ctx: click.Context, key: str | None, reverse: bool) -> None:
     """Sort the documents in the BibTeX file."""
     docs = ctx.obj["documents"]
     ctx.obj["documents"] = sorted(docs,
@@ -507,7 +502,7 @@ def cli_sort(ctx: click.Context, key: Optional[str], reverse: bool) -> None:
               default=None,
               type=str)
 @click.pass_context
-def cli_unique(ctx: click.Context, key: str, o: Optional[str]) -> None:
+def cli_unique(ctx: click.Context, key: str, o: str | None) -> None:
     """Remove duplicate BibTeX entries."""
     docs = ctx.obj["documents"]
     unique_docs = []
@@ -543,7 +538,7 @@ def cli_unique(ctx: click.Context, key: str, o: Optional[str]) -> None:
 
     if o:
         logger.info("Saving %d duplicate documents in '%s'.", len(duplicated_docs), o)
-        with open(o, "w+") as f:
+        with open(o, "w+", encoding="utf-8") as f:
             f.write(run(duplicated_docs, to_format="bibtex"))
 
 
@@ -555,7 +550,7 @@ def cli_unique(ctx: click.Context, key: str, o: Optional[str]) -> None:
               default=("doi", "url", "year", "title", "author"),
               type=str)
 @click.pass_context
-def cli_doctor(ctx: click.Context, key: List[str]) -> None:
+def cli_doctor(ctx: click.Context, key: list[str]) -> None:
     """
     Check BibTeX file for correctness.
 
@@ -584,7 +579,7 @@ def cli_doctor(ctx: click.Context, key: List[str]) -> None:
               help="Text file to check for references.",
               multiple=True, required=True, type=str)
 @click.pass_context
-def cli_filter_cited(ctx: click.Context, _files: List[str]) -> None:
+def cli_filter_cited(ctx: click.Context, _files: list[str]) -> None:
     """
     Filter cited documents from the BibTeX file.
 
@@ -598,7 +593,7 @@ def cli_filter_cited(ctx: click.Context, _files: List[str]) -> None:
     found = []
 
     for f in _files:
-        with open(f) as fd:
+        with open(f, encoding="utf-8") as fd:
             text = fd.read()
             for doc in ctx.obj["documents"]:
                 if re.search(doc["ref"], text):
@@ -614,7 +609,7 @@ def cli_filter_cited(ctx: click.Context, _files: List[str]) -> None:
               help="Text file to check for references.",
               multiple=True, required=True, type=str)
 @click.pass_context
-def cli_iscited(ctx: click.Context, _files: List[str]) -> None:
+def cli_iscited(ctx: click.Context, _files: list[str]) -> None:
     """
     Check which documents are not cited.
 
@@ -628,7 +623,7 @@ def cli_iscited(ctx: click.Context, _files: List[str]) -> None:
     unfound = []
 
     for f in _files:
-        with open(f) as fd:
+        with open(f, encoding="utf-8") as fd:
             text = fd.read()
             for doc in ctx.obj["documents"]:
                 if not re.search(doc["ref"], text):
@@ -646,7 +641,7 @@ def cli_iscited(ctx: click.Context, _files: List[str]) -> None:
 @click.option("-o", "--out", help="Out folder to export.", default=None)
 @papis.cli.all_option()
 @click.pass_context
-def cli_import(ctx: click.Context, out: Optional[str], _all: bool) -> None:
+def cli_import(ctx: click.Context, out: str | None, _all: bool) -> None:
     """
     Import documents from a BibTeX file to the current library.
 

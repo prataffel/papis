@@ -1,22 +1,20 @@
 """Module defining the main document type."""
 
+import enum
 import os
 import re
-import enum
-from typing import (
-    Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple,
-    TypedDict, Union,
-    )
+from collections.abc import Callable, Sequence
+from typing import Any, NamedTuple, TypeAlias, TypedDict
 
 import papis
 import papis.config
-import papis.strings
 import papis.logging
+import papis.strings
 
 logger = papis.logging.get_logger(__name__)
 
 #: A union of types that can be converted to a document.
-DocumentLike = Union["Document", Dict[str, Any]]
+DocumentLike: TypeAlias = "Document | dict[str, Any]"
 
 
 # NOTE: rankings used in papis.document.sort:
@@ -35,9 +33,9 @@ class KeyConversion(TypedDict):
     """A :class:`dict` that contains a *key* and an *action*."""
 
     #: Name of a key in a foreign dictionary to convert.
-    key: Optional[str]
+    key: str | None
     #: Action to apply to the value at :attr:`key` for pre-processing.
-    action: Optional[Callable[[Any], Any]]
+    action: Callable[[Any], Any] | None
 
 
 #: A default :class:`KeyConversion`.
@@ -49,12 +47,12 @@ class KeyConversionPair(NamedTuple):
     from_key: str
     #: A :class:`list` of :class:`KeyConversion` key mapping rules used to
     #: rename and post-process the :attr:`from_key` and its value.
-    rules: List[KeyConversion]
+    rules: list[KeyConversion]
 
 
 def keyconversion_to_data(conversions: Sequence[KeyConversionPair],
-                          data: Dict[str, Any],
-                          keep_unknown_keys: bool = False) -> Dict[str, Any]:
+                          data: dict[str, Any],
+                          keep_unknown_keys: bool = False) -> dict[str, Any]:
     r"""Function to convert between dictionaries.
 
     This can be used to define a fixed set of translation rules between, e.g.,
@@ -143,9 +141,9 @@ def keyconversion_to_data(conversions: Sequence[KeyConversionPair],
 
 
 def author_list_to_author(
-        data: Dict[str, Any],
-        separator: Optional[str] = None,
-        multiple_authors_format: Optional[papis.strings.AnyString] = None) -> str:
+        data: dict[str, Any],
+        separator: str | None = None,
+        multiple_authors_format: papis.strings.AnyString | None = None) -> str:
     """Convert a list of authors into a single author string.
 
     This uses the :confval:`multiple-authors-separator` and the
@@ -168,7 +166,7 @@ def author_list_to_author(
 
     if multiple_authors_format is None:
         multiple_authors_format = (
-            papis.config.getformattedstring("multiple-authors-format"))
+            papis.config.getformatpattern("multiple-authors-format"))
 
     if separator is None or multiple_authors_format is None:
         raise ValueError(
@@ -240,7 +238,7 @@ def guess_authors_separator(authors: str) -> str:
     return sep
 
 
-def split_author_name(author: str) -> Dict[str, Any]:
+def split_author_name(author: str) -> dict[str, Any]:
     """Split an author name into a given and family name.
 
     This uses :func:`bibtexparser.customization.splitname` to correctly
@@ -262,8 +260,8 @@ def split_author_name(author: str) -> Dict[str, Any]:
     return {"family": latex_to_unicode(family), "given": latex_to_unicode(given)}
 
 
-def split_authors_name(authors: Union[str, List[str]],
-                       separator: Optional[str] = None) -> List[Dict[str, Any]]:
+def split_authors_name(authors: str | list[str],
+                       separator: str | None = None) -> list[dict[str, Any]]:
     """Convert list of authors to a fixed format.
 
     Uses :func:`split_author_name` to construct the individual authors and the
@@ -290,7 +288,7 @@ def split_authors_name(authors: Union[str, List[str]],
     return author_list
 
 
-class DocHtmlEscaped(Dict[str, Any]):
+class DocHtmlEscaped(dict[str, Any]):
     """Small helper class to escape HTML elements in a document.
 
     >>> DocHtmlEscaped(from_data({"title": '> >< int & "" "'}))['title']
@@ -309,7 +307,7 @@ class DocHtmlEscaped(Dict[str, Any]):
             .replace('"', "&quot;"))
 
 
-class Document(Dict[str, Any]):
+class Document(dict[str, Any]):
     """An abstract document in a ``papis`` library.
 
     This class inherits from a standard :class:`dict` and implements some
@@ -325,11 +323,11 @@ class Document(Dict[str, Any]):
     _info_file_path: str = ""
 
     def __init__(self,
-                 folder: Optional[str] = None,
-                 data: Optional[Dict[str, Any]] = None) -> None:
+                 folder: str | None = None,
+                 data: dict[str, Any] | None = None) -> None:
         super().__init__()
 
-        self._folder: Optional[str] = None
+        self._folder: str | None = None
 
         if folder is not None:
             self.set_folder(folder)
@@ -379,14 +377,14 @@ class Document(Dict[str, Any]):
             .replace(os.path.expanduser("~"), "")
             .replace("/", " "))
 
-    def get_main_folder(self) -> Optional[str]:
+    def get_main_folder(self) -> str | None:
         """
         :returns: the root path in the filesystem where the document is stored,
             if any.
         """
         return self._folder
 
-    def get_main_folder_name(self) -> Optional[str]:
+    def get_main_folder_name(self) -> str | None:
         """
         :returns: the folder name of the document, i.e. the basename of
             the path returned by :meth:`get_main_folder`.
@@ -401,7 +399,7 @@ class Document(Dict[str, Any]):
         """
         return self._info_file_path
 
-    def _get_absolute_paths(self, key: str) -> List[str]:
+    def _get_absolute_paths(self, key: str) -> list[str]:
         folder = self.get_main_folder()
         if folder is None:
             return []
@@ -413,7 +411,7 @@ class Document(Dict[str, Any]):
         files = relative_files if isinstance(relative_files, list) else [relative_files]
         return [os.path.join(folder, f) for f in files]
 
-    def get_files(self) -> List[str]:
+    def get_files(self) -> list[str]:
         """Get the files linked to the document.
 
         The files in a document are stored relative to its main folder. If no
@@ -426,7 +424,7 @@ class Document(Dict[str, Any]):
         """
         return self._get_absolute_paths("files")
 
-    def get_notes(self) -> List[str]:
+    def get_notes(self) -> list[str]:
         """Get all notes linked to the document.
 
         :returns: a :class:`list` of absolute file paths in the document's
@@ -466,7 +464,7 @@ class Document(Dict[str, Any]):
             self.update(data)
 
 
-def from_data(data: Dict[str, Any]) -> Document:
+def from_data(data: dict[str, Any]) -> Document:
     """Construct a :class:`Document` from a dictionary.
 
     :param data: a dictionary to be made into a new document.
@@ -491,7 +489,7 @@ def to_json(document: Document) -> str:
     return json.dumps(to_dict(document))
 
 
-def to_dict(document: Document) -> Dict[str, Any]:
+def to_dict(document: Document) -> dict[str, Any]:
     """Convert a document back into a standard :class:`dict`.
 
     :returns: a :class:`dict` corresponding to all the entries in the document.
@@ -500,7 +498,7 @@ def to_dict(document: Document) -> Dict[str, Any]:
 
 
 def dump(document: Document) -> str:
-    """Dump the document into a formatted string.
+    """Dump the document into a string.
 
     The format of the string is not fixed and is meant to be used to display the
     document entries in a consistent way across ``papis``.
@@ -512,7 +510,8 @@ def dump(document: Document) -> str:
     'title: Hello World'
     """
     import yaml
-    from papis.yaml import Dumper   # type: ignore[attr-defined]
+
+    from papis.yaml import Dumper  # type: ignore[attr-defined]
 
     data = dict(document)
 
@@ -539,13 +538,13 @@ def delete(document: Document) -> None:
         shutil.rmtree(folder)
 
 
-def describe(document: Union[Document, Dict[str, Any]]) -> str:
+def describe(document: Document | dict[str, Any]) -> str:
     """
     :returns: a string description of the current document using
         :confval:`document-description-format`.
     """
     return papis.format.format(
-        papis.config.getformattedstring("document-description-format"),
+        papis.config.getformatpattern("document-description-format"),
         document, default=document.get("title", str(document)))
 
 
@@ -574,9 +573,8 @@ def move(document: Document, path: str) -> None:
     path = os.path.expanduser(path)
     if os.path.exists(path):
         raise FileExistsError(
-            "There is already a document at '{}' that should be checked. A temporary"
-            "document has been stored at '{}'"
-            .format(path, folder)
+            f"There is already a document at '{path}' that should be checked. "
+            f"A temporary document has been stored at '{folder}'"
         )
 
     import shutil
@@ -588,7 +586,7 @@ def move(document: Document, path: str) -> None:
     document.set_folder(path)
 
 
-def sort(docs: Sequence[Document], key: str, reverse: bool = False) -> List[Document]:
+def sort(docs: Sequence[Document], key: str, reverse: bool = False) -> list[Document]:
     """Sort a list of documents by the given *key*.
 
     The sort is performed on the key with a priority given to the type of the
@@ -608,7 +606,7 @@ def sort(docs: Sequence[Document], key: str, reverse: bool = False) -> List[Docu
 
     from contextlib import suppress
 
-    def document_sort_key(doc: Document) -> Tuple[int, datetime, int, str]:
+    def document_sort_key(doc: Document) -> tuple[int, datetime, int, str]:
         priority, date, int_value, str_value = default_sort_key
 
         value = doc.get(key, None)
@@ -635,8 +633,8 @@ def sort(docs: Sequence[Document], key: str, reverse: bool = False) -> List[Docu
 
 
 def new(folder_path: str,
-        data: Dict[str, Any],
-        files: Optional[Sequence[str]] = None) -> Document:
+        data: dict[str, Any],
+        files: Sequence[str] | None = None) -> Document:
     """Creates a complete document with data and existing files.
 
     The document is saved to the filesystem at *folder_path* and all the given

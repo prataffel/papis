@@ -41,9 +41,8 @@ Command Options
     in the journal title.
 """
 
-import os
 import json
-from typing import Dict, Optional
+import os
 
 import papis.api
 import papis.document
@@ -67,7 +66,7 @@ if not LTWA_FILE_PATH:
     LTWA_FILE_PATH = os.path.join(SCRIPT_PATH, "LTWA.json")
 
 try:
-    with open(LTWA_FILE_PATH) as f:
+    with open(LTWA_FILE_PATH, encoding="utf-8") as f:
         LTWA_ABBREVS = json.load(f)
 except FileNotFoundError:
     LTWA_ABBREVS = {}
@@ -95,7 +94,7 @@ ABBREV_IGNORE_ACRONYMS = frozenset([
 ]) | frozenset(papis.config.getlist("ignore-acronyms", section="abbrev"))
 
 
-def ltwa_abbreviate(full_journal_name: str, d: Optional[Dict[str, str]] = None) -> str:
+def ltwa_abbreviate(full_journal_name: str, d: dict[str, str] | None = None) -> str:
     """
     Abbreviates a journal name using International Standard Serial
     Number (ISSN) guidelines.
@@ -121,7 +120,7 @@ def ltwa_abbreviate(full_journal_name: str, d: Optional[Dict[str, str]] = None) 
     words = full_journal_name.replace("-", " _").split(" ")
     for word in words:
         # add a full stop to allow [:-i] to function as intended
-        lower_word = "{}.".format(word.lower())
+        lower_word = f"{word.lower()}."
         hyphenation = False
 
         if "-" in lower_word:
@@ -137,7 +136,7 @@ def ltwa_abbreviate(full_journal_name: str, d: Optional[Dict[str, str]] = None) 
             if suffix in d:
                 # ...add it to the list.
                 if hyphenation:
-                    return_list.append("-{}".format(d[suffix]))
+                    return_list.append(f"-{d[suffix]}")
                 else:
                     return_list.append(d[suffix])
                 break
@@ -150,7 +149,7 @@ def ltwa_abbreviate(full_journal_name: str, d: Optional[Dict[str, str]] = None) 
             elif i == len(lower_word[:-1]):
                 # ...add the full word to the list.
                 if hyphenation:
-                    return_list.append("-{}".format(lower_word[:-1]))
+                    return_list.append(f"-{lower_word[:-1]}")
                 else:
                     return_list.append(lower_word[:-1])
 

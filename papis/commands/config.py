@@ -70,29 +70,29 @@ Command-line interface
     :prog: papis config
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import click
 import colorama
 
 import papis.cli
-import papis.config
 import papis.commands
+import papis.config
 import papis.logging
 
 logger = papis.logging.get_logger(__name__)
 
 
 def format_option(key: str, value: Any) -> str:
+    c = colorama
     return (
-        "{c.Style.BRIGHT}{key}{c.Style.NORMAL} "
-        "= {c.Fore.GREEN}{value!r}{c.Style.RESET_ALL}"
-        .format(c=colorama, key=key, value=value))
+        f"{c.Style.BRIGHT}{key}{c.Style.NORMAL} "
+        f"= {c.Fore.GREEN}{value!r}{c.Style.RESET_ALL}")
 
 
 def parse_option(
-        option: str, default_section: Optional[str]
-        ) -> Tuple[Optional[str], str]:
+        option: str, default_section: str | None
+        ) -> tuple[str | None, str]:
     """
     :returns: a ``(section, key)`` tuple parsed from *option*.
     """
@@ -118,8 +118,8 @@ def parse_option(
 
 
 def _get_option_safe(
-        option: str, default_section: Optional[str], default: bool = False,
-        ) -> Tuple[Optional[str], Optional[str]]:
+        option: str, default_section: str | None, default: bool = False,
+        ) -> tuple[str | None, str | None]:
     key = option
     value = None
 
@@ -153,10 +153,10 @@ def _get_option_safe(
 
 
 def run(
-        options: List[str],
-        section: Optional[str] = None,
+        options: list[str],
+        section: str | None = None,
         default: bool = False,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
     """
     :param options: a list of strings, each in a format ``[<section>].<key>``
         (i.e. where the section is optional).
@@ -165,7 +165,7 @@ def run(
         the values from the configuration file.
     """
     config = papis.config.get_configuration()
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     if len(options) == 0:
         # NOTE: no options given -> just get all the settings
@@ -228,8 +228,8 @@ def run(
 @papis.cli.bool_flag(
     "--json", "print_json",
     help="Print settings in a JSON format.")
-def cli(options: List[str],
-        section: Optional[str],
+def cli(options: list[str],
+        section: str | None,
         default: bool,
         print_json: bool) -> None:
     """Print configuration values."""
@@ -254,12 +254,12 @@ def cli(options: List[str],
     if len(options) == 0 and section is None:
         # NOTE: no inputs prints all of the sections
         is_first = True
-        for section, settings in result.items():
+        for sec, settings in result.items():
             if not is_first:
                 lines.append("")
 
             is_first = False
-            lines.append(f"[{section}]")
+            lines.append(f"[{sec}]")
 
             for key, value in settings.items():
                 lines.append(format_option(key, value))

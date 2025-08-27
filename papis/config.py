@@ -1,6 +1,7 @@
-import os
 import configparser
-from typing import Dict, Any, List, Optional, Callable
+import os
+from collections.abc import Callable
+from typing import Any
 
 import click
 import platformdirs
@@ -8,17 +9,17 @@ import platformdirs
 import papis.exceptions
 import papis.library
 import papis.logging
-from papis.strings import FormattedString
+from papis.strings import FormatPattern
 
 logger = papis.logging.get_logger(__name__)
 
-PapisConfigType = Dict[str, Dict[str, Any]]
+PapisConfigType = dict[str, dict[str, Any]]
 
 CURRENT_LIBRARY = None
-CURRENT_CONFIGURATION: Optional["Configuration"] = None
+CURRENT_CONFIGURATION: "Configuration | None" = None
 
-DEFAULT_SETTINGS: Optional[PapisConfigType] = None
-OVERRIDE_VARS: Dict[str, Optional[str]] = {
+DEFAULT_SETTINGS: PapisConfigType | None = None
+OVERRIDE_VARS: dict[str, str | None] = {
     "folder": None,
     "file": None,
     "scripts": None
@@ -116,7 +117,7 @@ class Configuration(configparser.ConfigParser):
                            f"'{self.file_location}'.")
                 click.echo(f"Error: Duplicate option '{exc.option}' "
                            f"in section {exc.section}")
-                raise SystemExit(1)
+                raise SystemExit(1) from None
 
         # if no sections were actually read, add default ones
         if not self.sections():
@@ -134,7 +135,7 @@ class Configuration(configparser.ConfigParser):
         # evaluate the python config
         configpy = get_configpy_file()
         if os.path.exists(configpy):
-            with open(configpy) as fd:
+            with open(configpy, encoding="utf-8") as fd:
                 # NOTE: this includes the `globals()` so that the user config.py
                 # can add entries to the global namespace. This was motivated
                 # by adding filters to `Jinja2Formatter.env`, which may be separated
@@ -265,7 +266,6 @@ def get_config_file() -> str:
         :func:`get_config_folder`, but can be overwritten using
         :func:`set_config_file`.
     """
-
     if OVERRIDE_VARS["file"] is not None:
         config_file = OVERRIDE_VARS["file"]
     else:
@@ -301,7 +301,7 @@ def get_scripts_folder() -> str:
     return os.path.join(get_config_folder(), "scripts")
 
 
-def set(key: str, value: Any, section: Optional[str] = None) -> None:
+def set(key: str, value: Any, section: str | None = None) -> None:
     """Set a key in the configuration.
 
     :param key: the name of the key to set.
@@ -327,8 +327,8 @@ def set(key: str, value: Any, section: Optional[str] = None) -> None:
 
 
 def general_get(key: str,
-                section: Optional[str] = None,
-                data_type: Optional[type] = None) -> Optional[Any]:
+                section: str | None = None,
+                data_type: type | None = None) -> Any | None:
     """Get the value for a given *key* in *section*.
 
     This function is a bit more general than the get from :class:`Configuration`
@@ -422,12 +422,12 @@ def general_get(key: str,
     return value
 
 
-def get(key: str, section: Optional[str] = None) -> Optional[Any]:
+def get(key: str, section: str | None = None) -> Any | None:
     """Retrieve a general value (can be *None*) from the configuration file."""
     return general_get(key, section=section)
 
 
-def getint(key: str, section: Optional[str] = None) -> Optional[int]:
+def getint(key: str, section: str | None = None) -> int | None:
     """Retrieve an integer value from the configuration file.
 
         >>> set("something", 42)
@@ -436,12 +436,12 @@ def getint(key: str, section: Optional[str] = None) -> Optional[int]:
     """
     try:
         return general_get(key, section=section, data_type=int)
-    except ValueError:
+    except ValueError as exc:
         value = general_get(key, section=section)
-        raise ValueError("Key '{}' should be an integer: '{}'".format(key, value))
+        raise ValueError(f"Key '{key}' should be an integer: '{value}'") from exc
 
 
-def getfloat(key: str, section: Optional[str] = None) -> Optional[float]:
+def getfloat(key: str, section: str | None = None) -> float | None:
     """Retrieve an floating point value from the configuration file.
 
         >>> set("something", 0.42)
@@ -450,12 +450,12 @@ def getfloat(key: str, section: Optional[str] = None) -> Optional[float]:
     """
     try:
         return general_get(key, section=section, data_type=float)
-    except ValueError:
+    except ValueError as exc:
         value = general_get(key, section=section)
-        raise ValueError("Key '{}' should be a float: '{}'".format(key, value))
+        raise ValueError(f"Key '{key}' should be a float: '{value}'") from exc
 
 
-def getboolean(key: str, section: Optional[str] = None) -> Optional[bool]:
+def getboolean(key: str, section: str | None = None) -> bool | None:
     """Retrieve a boolean value from the configuration file.
 
         >>> set("add-open", True)
@@ -464,12 +464,12 @@ def getboolean(key: str, section: Optional[str] = None) -> Optional[bool]:
     """
     try:
         return general_get(key, section=section, data_type=bool)
-    except ValueError:
+    except ValueError as exc:
         value = general_get(key, section=section)
-        raise ValueError("Key '{}' should be a boolean: '{}'" .format(key, value))
+        raise ValueError(f"Key '{key}' should be a boolean: '{value}'") from exc
 
 
-def getstring(key: str, section: Optional[str] = None) -> str:
+def getstring(key: str, section: str | None = None) -> str:
     """Retrieve a string value from the configuration file.
 
         >>> set("add-open", "hello world")
@@ -478,15 +478,15 @@ def getstring(key: str, section: Optional[str] = None) -> str:
     """
     result = general_get(key, section=section, data_type=str)
     if not isinstance(result, str):
-        raise ValueError("Key '{}' should be a string: '{}'".format(key, result))
+        raise ValueError(f"Key '{key}' should be a string: {result!r}")
 
     return str(result)
 
 
-def getformattedstring(key: str, section: Optional[str] = None) -> FormattedString:
-    """Retrieve a formatted string value from the configuration file.
+def getformatpattern(key: str, section: str | None = None) -> FormatPattern:
+    """Retrieve a format pattern from the configuration file.
 
-    Formatted strings use the :class:`~papis.strings.FormattedString` class to
+    Format patterns use the :class:`~papis.strings.FormatPattern` class to
     define a string that should be formatted by a specific
     :class:`~papis.format.Formatter`. For configuration options, such strings
     can be defined in the configuration file as::
@@ -501,24 +501,24 @@ def getformattedstring(key: str, section: Optional[str] = None) -> FormattedStri
     Formatters are checked in alphabetical order and the last one is returned.
 
         >>> set("add-open", "hello world")
-        >>> r = getformattedstring("add-open")
+        >>> r = getformatpattern("add-open")
         >>> r.formatter
         'python'
 
-        >>> set("add-open", FormattedString("python", "hello world"))
-        >>> r = getformattedstring("add-open")
+        >>> set("add-open", FormatPattern("python", "hello world"))
+        >>> r = getformatpattern("add-open")
         >>> r.formatter
         'python'
 
         >>> set("add-open.python", "hello world")
-        >>> r = getformattedstring("add-open")
+        >>> r = getformatpattern("add-open")
         >>> r.formatter
         'python'
     """
-    from papis.format import get_available_formatters, get_default_formatter
+    from papis.format import get_available_formatters
 
-    formatter = get_default_formatter()
-    result: Optional[str] = None
+    formatter = getstring("formatter")
+    result: str | None = None
 
     for f in get_available_formatters():
         try:
@@ -531,15 +531,15 @@ def getformattedstring(key: str, section: Optional[str] = None) -> FormattedStri
     if result is None:
         result = general_get(key, section=section, data_type=str)
 
-    if isinstance(result, FormattedString):
+    if isinstance(result, FormatPattern):
         return result
     elif isinstance(result, str):
-        return FormattedString(formatter, result)
+        return FormatPattern(formatter, result)
     else:
         raise ValueError(f"Key '{key}' should be a string: '{result}'")
 
 
-def getlist(key: str, section: Optional[str] = None) -> List[str]:
+def getlist(key: str, section: str | None = None) -> list[str]:
     """Retrieve a list value from the configuration file.
 
     This function uses :func:`eval` to execute a the string present in the
@@ -558,15 +558,15 @@ def getlist(key: str, section: Optional[str] = None) -> List[str]:
         return list(map(str, rawvalue))
     try:
         rawvalue = eval(rawvalue)
-    except Exception:
+    except Exception as exc:
         raise SyntaxError(
             f"The key '{key}' must be a valid Python object: {rawvalue}"
-            )
+            ) from exc
     else:
         if not isinstance(rawvalue, list):
             raise SyntaxError(
-                "The key '{}' must be a valid Python list. Got: {} (type {!r})"
-                .format(key, rawvalue, type(rawvalue).__name__))
+                f"The key '{key}' must be a valid Python list. "
+                f"Got: {rawvalue} (type {type(rawvalue)})")
 
         return list(map(str, rawvalue))
 
@@ -590,7 +590,7 @@ def get_configuration() -> Configuration:
     return CURRENT_CONFIGURATION
 
 
-def merge_configuration_from_path(path: Optional[str],
+def merge_configuration_from_path(path: str | None,
                                   configuration: Configuration) -> None:
     """Merge information of a configuration file found in *path* into *configuration*.
 
@@ -678,7 +678,7 @@ def get_lib_from_name(libname: str) -> papis.library.Library:
     return lib
 
 
-def get_lib_dirs() -> List[str]:
+def get_lib_dirs() -> list[str]:
     """Get the directories of the current library."""
     return get_lib().paths
 
@@ -717,12 +717,12 @@ def get_lib() -> papis.library.Library:
     return CURRENT_LIBRARY
 
 
-def get_libs() -> List[str]:
+def get_libs() -> list[str]:
     """Get all the library names from the configuration file."""
     return get_libs_from_config(get_configuration())
 
 
-def get_libs_from_config(config: Configuration) -> List[str]:
+def get_libs_from_config(config: Configuration) -> list[str]:
     """Get all library names from the given *configuration*.
 
     In the configuration file, any sections that contain a ``"dir"`` or a

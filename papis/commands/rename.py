@@ -53,21 +53,19 @@ Command-line interface
     :prog: papis rename
 """
 
-from typing import Optional, Tuple
-
 import click
 
-import papis.config
 import papis.cli
-import papis.format
-import papis.utils
+import papis.config
 import papis.database
-import papis.strings
-import papis.git
-import papis.pick
 import papis.document
-import papis.tui.utils
+import papis.format
+import papis.git
 import papis.logging
+import papis.pick
+import papis.strings
+import papis.tui.utils
+import papis.utils
 from papis.exceptions import DocumentFolderNotFound
 
 logger = papis.logging.get_logger(__name__)
@@ -110,8 +108,8 @@ def run(document: papis.document.Document,
 @click.option(
     "--folder-name",
     help="Name format for the document main folder.",
-    type=papis.cli.FormattedStringParamType(),
-    default=lambda: papis.config.getformattedstring("add-folder-name"))
+    type=papis.cli.FormatPatternParamType(),
+    default=lambda: papis.config.getformatpattern("add-folder-name"))
 @papis.cli.bool_flag(
     "-b", "--batch",
     help="Batch mode, do not prompt.")
@@ -125,8 +123,8 @@ def cli(query: str,
         _all: bool,
         batch: bool,
         git: bool,
-        sort_field: Optional[str],
-        doc_folder: Tuple[str, ...],
+        sort_field: str | None,
+        doc_folder: tuple[str, ...],
         sort_reverse: bool) -> None:
     """Rename document folders."""
     if not folder_name:

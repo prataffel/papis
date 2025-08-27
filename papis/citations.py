@@ -1,20 +1,21 @@
 import os
-from typing import Dict, Any, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any, TypeAlias
 
 import papis.config
-import papis.database
 import papis.crossref
-import papis.yaml
-import papis.utils
-import papis.logging
+import papis.database
 import papis.document
+import papis.logging
+import papis.utils
+import papis.yaml
 
 logger = papis.logging.get_logger(__name__)
 
 #: A citation for an existing document.
-Citation = Dict[str, Any]
+Citation: TypeAlias = dict[str, Any]
 #: A list of citations for an existing document.
-Citations = List[Citation]
+Citations: TypeAlias = list[Citation]
 
 
 def _delete_citations_key(citations: Citations) -> None:
@@ -55,12 +56,12 @@ def fetch_citations(doc: papis.document.Document) -> Citations:
 
             if not metadata_citations:
                 raise ValueError(
-                    "Could not retrieve citations from the DOI '{}' for document '{}'"
-                    .format(doi, papis.document.describe(doc)))
+                    f"Could not retrieve citations from the DOI '{doi}' "
+                    f"for document '{papis.document.describe(doc)}'")
         else:
             raise ValueError(
-                "Cannot find citations in a document without a DOI: '{}'"
-                .format(papis.document.describe(doc)))
+                "Cannot find citations in a document without a DOI: "
+                f"'{papis.document.describe(doc)}'")
 
     dois = [str(d.get("doi")).lower() for d in metadata_citations if "doi" in d]
     logger.info("Found %d citations with a DOI.", len(dois))
@@ -125,7 +126,7 @@ def update_citations_from_database(citations: Citations) -> Citations:
 
     :param citations: a list of existing citations to update.
     """
-    new_citations: List[Dict[str, Any]] = []
+    new_citations: list[dict[str, Any]] = []
     dois = [str(c.get("doi")).lower() for c in citations
             if "doi" in c]
 
@@ -164,7 +165,7 @@ def fetch_and_save_citations(doc: papis.document.Document) -> None:
         save_citations(doc, citations)
 
 
-def get_citations_file(doc: papis.document.Document) -> Optional[str]:
+def get_citations_file(doc: papis.document.Document) -> str | None:
     """Get the document's citation file path (see
     :confval:`citations-file-name`).
 
@@ -208,7 +209,7 @@ def get_citations(doc: papis.document.Document) -> Citations:
 # =============================================================================
 
 
-def get_cited_by_file(doc: papis.document.Document) -> Optional[str]:
+def get_cited_by_file(doc: papis.document.Document) -> str | None:
     """Get the documents cited-by file (see :confval:`cited-by-file-name`).
 
     :returns: an absolute path to the cited-by file for *doc*.
@@ -242,7 +243,7 @@ def save_cited_by(doc: papis.document.Document, citations: Citations) -> None:
     papis.yaml.list_to_path(citations, file_path, allow_unicode=allow_unicode)
 
 
-def _cites_me_p(doi_doc: Tuple[str, papis.document.Document]) -> Optional[Citation]:
+def _cites_me_p(doi_doc: tuple[str, papis.document.Document]) -> Citation | None:
     doi, doc = doi_doc
     if not has_citations(doc):
         return None
@@ -266,7 +267,7 @@ def fetch_cited_by_from_database(cit: Citation) -> Citations:
     if not doi:
         return []
 
-    result: List[Citation] = []
+    result: list[Citation] = []
     db = papis.database.get()
     documents = db.get_all_documents()
 

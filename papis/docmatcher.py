@@ -1,10 +1,10 @@
 import re
-from typing import Any, ClassVar, List, NamedTuple, Optional, Pattern, Protocol
+from typing import Any, ClassVar, NamedTuple, Protocol
 
 import papis.config
 import papis.document
 import papis.logging
-from papis.strings import AnyString, FormattedString
+from papis.strings import AnyString, FormatPattern
 
 logger = papis.logging.get_logger(__name__)
 
@@ -23,9 +23,9 @@ class ParseResult(NamedTuple):
     search: str
     #: A regex pattern constructed from the :attr:`search` using
     #: :func:`get_regex_from_search`.
-    pattern: Pattern[str]
+    pattern: re.Pattern[str]
     #: A document key that was matched for this result, if any.
-    doc_key: Optional[str]
+    doc_key: str | None
 
     def __repr__(self) -> str:
         doc_key = f"{self.doc_key!r}, " if self.doc_key is not None else ""
@@ -40,9 +40,9 @@ class MatcherCallable(Protocol):
 
     def __call__(self,
                  document: papis.document.Document,
-                 search: Pattern[str],
-                 match_format: Optional[AnyString] = None,
-                 doc_key: Optional[str] = None,
+                 search: re.Pattern[str],
+                 match_format: AnyString | None = None,
+                 doc_key: str | None = None,
                  ) -> Any:
         """Match a document's keys to a given search pattern.
 
@@ -53,7 +53,7 @@ class MatcherCallable(Protocol):
 
         :param search: a regex pattern to match the query against
             (see :attr:`ParseResult.pattern`).
-        :param match_format: a format string (see :func:`papis.format.format`)
+        :param match_format: a format pattern (see :func:`papis.format.format`)
             to match against.
         :param doc_key: a specific key in the document to match against.
         :returns: *None* if the match fails and anything else otherwise.
@@ -83,18 +83,18 @@ class DocMatcher:
     #: Search string from which the matcher is constructed.
     search: ClassVar[str] = ""
     #: A parsed version of the :attr:`search` string using :func:`parse_query`.
-    parsed_search: ClassVar[Optional[List[ParseResult]]] = None
+    parsed_search: ClassVar[list[ParseResult] | None] = None
     #: A :class:`MatcherCallable` used to match the document to the
     #: :attr:`parsed_search`.
-    matcher: ClassVar[Optional[MatcherCallable]] = None
-    #: A format string (defaulting to :confval:`match-format`) used
+    matcher: ClassVar[MatcherCallable | None] = None
+    #: A format pattern (defaulting to :confval:`match-format`) used
     #: to match the parsed search results if no document key is present.
-    match_format: ClassVar[FormattedString] = FormattedString(None, "")
+    match_format: ClassVar[FormatPattern] = FormatPattern(None, "")
 
     @classmethod
     def return_if_match(
             cls,
-            doc: papis.document.Document) -> Optional[papis.document.Document]:
+            doc: papis.document.Document) -> papis.document.Document | None:
         """Use :attr:`DocMatcher.parsed_search` to match the *doc* against the query.
 
             >>> import papis.document
@@ -149,7 +149,7 @@ class DocMatcher:
         cls.matcher = matcher
 
     @classmethod
-    def parse(cls, search: Optional[str] = None) -> List[ParseResult]:
+    def parse(cls, search: str | None = None) -> list[ParseResult]:
         """Parse the main query text.
 
         This method will also set :attr:`DocMatcher.parsed_search` to the
@@ -172,13 +172,13 @@ class DocMatcher:
         if search is None:
             search = cls.search
 
-        cls.match_format = papis.config.getformattedstring("match-format")
+        cls.match_format = papis.config.getformatpattern("match-format")
         cls.parsed_search = parse_query(search)
 
         return cls.parsed_search
 
 
-def get_regex_from_search(search: str) -> Pattern[str]:
+def get_regex_from_search(search: str) -> re.Pattern[str]:
     r"""Creates a default regex from a search string.
 
         >>> get_regex_from_search(' ein 192     photon').pattern
@@ -195,7 +195,7 @@ def get_regex_from_search(search: str) -> Pattern[str]:
         re.IGNORECASE)
 
 
-def parse_query(query_string: str) -> List[ParseResult]:
+def parse_query(query_string: str) -> list[ParseResult]:
     """Parse a query string using :mod:`pyparsing`.
 
     The query language implemented by this function for Papis supports strings

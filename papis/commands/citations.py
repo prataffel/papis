@@ -45,18 +45,18 @@ Command-line interface
     :prog: papis citations
 """
 
-from typing import Optional, Tuple
-
 import click
 
 import papis.cli
 import papis.document
 import papis.logging
-from papis.citations import (has_citations,
-                             has_cited_by,
-                             update_and_save_citations_from_database_from_doc,
-                             fetch_and_save_citations,
-                             fetch_and_save_cited_by_from_database)
+from papis.citations import (
+    fetch_and_save_citations,
+    fetch_and_save_cited_by_from_database,
+    has_citations,
+    has_cited_by,
+    update_and_save_citations_from_database_from_doc,
+)
 
 logger = papis.logging.get_logger(__name__)
 
@@ -76,8 +76,8 @@ logger = papis.logging.get_logger(__name__)
 @papis.cli.all_option()
 @papis.cli.doc_folder_option()
 def cli(query: str,
-        doc_folder: Tuple[str, ...],
-        sort_field: Optional[str],
+        doc_folder: tuple[str, ...],
+        sort_field: str | None,
         sort_reverse: bool,
         _all: bool,
         force: bool,
@@ -92,10 +92,10 @@ def cli(query: str,
                                                            _all)
 
     for i, document in enumerate(documents):
-        _has_citations_p = has_citations(document)
-        _has_cited_by_p = has_cited_by(document)
+        has_citations_p = has_citations(document)
+        has_cited_by_p = has_cited_by(document)
         if fetch_citations:
-            if _has_citations_p and force or not _has_citations_p:
+            if (has_citations_p and force) or not has_citations_p:
                 logger.info("[%d/%d] Fetching citations for '%s'.",
                             i + 1, len(documents),
                             papis.document.describe(document))
@@ -106,13 +106,13 @@ def cli(query: str,
                                  papis.document.describe(document), exc_info=exc)
 
         if update_from_database:
-            if _has_citations_p:
+            if has_citations_p:
                 logger.info("[%d/%d] Updating citations from library for '%s'.",
                             i + 1, len(documents),
                             papis.document.describe(document))
                 update_and_save_citations_from_database_from_doc(document)
         if fetch_cited_by:
-            if _has_cited_by_p and force or not _has_cited_by_p:
+            if (has_cited_by_p and force) or not has_cited_by_p:
                 logger.info(
                     "[%d/%d] Fetching cited-by references from library for '%s'",
                     i + 1, len(documents),

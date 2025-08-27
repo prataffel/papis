@@ -1,10 +1,10 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 import papis
-import papis.utils
-import papis.importer
 import papis.document
 import papis.downloaders.base
+import papis.importer
+import papis.utils
 
 # https://api.ncbi.nlm.nih.gov/lit/ctxp
 PUBMED_DATABASE = "pubmed"
@@ -27,7 +27,8 @@ type_converter = {
 def handle_pubmed_pages(pages: str) -> str:
     # returned data is in the form 561-7 meaning 562-567
     start, end = [x.strip() for x in pages.split("-")]
-    end = "{}{}".format(start[:max(0, len(start) - len(end))], end)
+    prefix = start[:max(0, len(start) - len(end))]
+    end = f"{prefix}{end}"
 
     return f"{start}--{end}"
 
@@ -57,7 +58,7 @@ key_conversion = [
 ]
 
 
-def pubmed_data_to_papis_data(data: Dict[str, Any]) -> Dict[str, Any]:
+def pubmed_data_to_papis_data(data: dict[str, Any]) -> dict[str, Any]:
     new_data = papis.document.keyconversion_to_data(key_conversion, data)
     new_data["author"] = papis.document.author_list_to_author(new_data)
 
@@ -75,13 +76,13 @@ def is_valid_pmid(pmid: str) -> bool:
     return response.ok
 
 
-def get_data(query: str = "") -> Dict[str, Any]:
+def get_data(query: str = "") -> dict[str, Any]:
     # NOTE: being nice and using the project version as a user agent
     # as requested in https://api.ncbi.nlm.nih.gov/lit/ctxp
     with papis.utils.get_session() as session:
         response = session.get(
             PUBMED_URL.format(pmid=query.strip(), database=PUBMED_DATABASE),
-            headers={"user-agent": f"papis/{papis.__version__}"},
+            headers={"user-agent": papis.PAPIS_USER_AGENT},
             )
 
     import json
@@ -96,7 +97,7 @@ class Importer(papis.importer.Importer):
         super().__init__(name="pubmed", uri=uri)
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         if is_valid_pmid(uri):
             return Importer(uri)
 

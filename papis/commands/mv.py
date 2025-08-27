@@ -9,19 +9,18 @@ Command-line interface
 """
 
 import os
-from typing import Optional, Tuple
 
 import click
 
+import papis.cli
 import papis.config
-import papis.git
-import papis.utils
 import papis.database
 import papis.document
-import papis.cli
+import papis.git
+import papis.logging
 import papis.pick
 import papis.strings
-import papis.logging
+import papis.utils
 from papis.exceptions import DocumentFolderNotFound
 
 logger = papis.logging.get_logger(__name__)
@@ -61,8 +60,8 @@ def run(document: papis.document.Document,
 @papis.cli.doc_folder_option()
 def cli(query: str,
         git: bool,
-        sort_field: Optional[str],
-        doc_folder: Tuple[str, ...],
+        sort_field: str | None,
+        doc_folder: tuple[str, ...],
         sort_reverse: bool) -> None:
     """Move a document into some other path."""
     # Leave this imports here for performance
@@ -92,10 +91,7 @@ def cli(query: str,
             prompt_toolkit.prompt(
                 message=(
                     "Enter directory  : (Tab completion enabled)\n"
-                    "Current directory: ({dir})\n".format(
-                        dir=document.get_main_folder_name()
-                    ) + ">  "
-                ),
+                    f"Current directory: ({document.get_main_folder_name()})\n >"),
                 completer=completer,
                 complete_while_typing=True
             ))

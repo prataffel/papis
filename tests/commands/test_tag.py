@@ -1,8 +1,7 @@
 import os
 
 import papis.database
-
-from papis.testing import TemporaryLibrary, PapisRunner
+from papis.testing import PapisRunner, TemporaryLibrary
 
 
 def _get_resource_file(filename: str) -> str:
@@ -25,8 +24,11 @@ def test_tag_add_general_cli(tmp_library: TemporaryLibrary) -> None:
     assert not result.output
 
     result = cli_runner.invoke(
-        cli,
-        ["--add", "tag3"] + ["--add", "2345"] + ["krishnamurti"],
+        cli, [
+            "--add", "tag3",
+            "--add", "2345",
+            "krishnamurti"
+        ],
     )
     assert result.exit_code == 0
 
@@ -47,7 +49,7 @@ def test_tag_add_to_new_key_cli(tmp_library: TemporaryLibrary) -> None:
 
     result = cli_runner.invoke(
         cli,
-        ["--add", "tag3"] + ["doc without files"],
+        ["--add", "tag3", "doc without files"],
     )
     assert result.exit_code == 0
 
@@ -69,7 +71,7 @@ def test_tag_add_del_duplicates_in_list_cli(
 
     result = cli_runner.invoke(
         cli,
-        ["--add", "tag3"] + ["--add", "tag3"] + ["krishnamurti"],
+        ["--add", "tag3", "--add", "tag3", "krishnamurti"],
     )
     assert result.exit_code == 0
 
@@ -91,7 +93,7 @@ def test_tag_remove_general_cli(
 
     result = cli_runner.invoke(
         cli,
-        ["--remove", "tag1"] + ["--remove", "1234"] + ["krishnamurti"],
+        ["--remove", "tag1", "--remove", "1234", "krishnamurti"],
     )
     assert result.exit_code == 0
 
@@ -113,7 +115,7 @@ def test_tag_remove_from_missing_key_cli(
 
     result = cli_runner.invoke(
         cli,
-        ["--remove", "tag"] + ["doc without files"],
+        ["--remove", "tag", "doc without files"],
     )
     assert result.exit_code == 0
 
@@ -131,7 +133,7 @@ def test_tag_drop_general_cli(
 
     result = cli_runner.invoke(
         cli,
-        ["--drop"] + ["krishnamurti"],
+        ["--drop", "krishnamurti"],
     )
     assert result.exit_code == 0
 
@@ -153,7 +155,7 @@ def test_tag_drop_missing_key_cli(
 
     result = cli_runner.invoke(
         cli,
-        ["--drop"] + ["doc without files"],
+        ["--drop", "doc without files"],
     )
     assert result.exit_code == 0
 
@@ -170,10 +172,11 @@ def test_tag_rename_general_cli(
     assert not result.output
 
     result = cli_runner.invoke(
-        cli,
-        ["--rename", "tag1", "tag_renamed1"]
-        + ["--rename", "1234", "2345"]
-        + ["krishnamurti"],
+        cli, [
+            "--rename", "tag1", "tag_renamed1",
+            "--rename", "1234", "2345",
+            "krishnamurti"
+        ],
     )
     assert result.exit_code == 0
 
@@ -196,6 +199,6 @@ def test_tag_rename_missing_value_cli(
 
     result = cli_runner.invoke(
         cli,
-        ["--rename", "tag_nonexistent", "tag_renamed1"] + ["krishnamurti"],
+        ["--rename", "tag_nonexistent", "tag_renamed1", "krishnamurti"],
     )
     assert result.exit_code == 0

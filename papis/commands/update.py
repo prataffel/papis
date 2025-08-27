@@ -4,7 +4,7 @@ This command allows you to update the document metadata stored in the
 or update a document with information automatically retrieved from a variety
 of sources.
 
-When using it to add information, Papis formatting strings and Python
+When using it to add information, Papis formatting patterns and Python
 expressions can be used. See below examples for more information. The command
 also tries to sanitise filenames so that they don't contain any problematic
 characters.
@@ -80,6 +80,12 @@ Examples
     doesn't yet exist, it will be created. All duplicate items will be removed
     from the list.
 
+    As you might have guessed, the ``--append`` flag needs to know the type of
+    the key it is appending to. It does this by looking at the
+    :confval:`doctor-key-type-keys` (and :confval:`doctor-key-type-keys-extend`)
+    configuration options. If the key you are appending to is not in that list,
+    the command will fail.
+
 - To remove an item from a list, use ``--remove``:
 
     .. code:: sh
@@ -128,7 +134,8 @@ Command-line interface
 """
 
 import ast
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 import click
 
@@ -142,7 +149,7 @@ import papis.importer
 import papis.logging
 import papis.strings
 import papis.utils
-from papis.strings import AnyString, process_formatted_string_pair
+from papis.strings import AnyString, process_format_pattern_pair
 
 logger = papis.logging.get_logger(__name__)
 
@@ -165,8 +172,8 @@ def try_parsing_str(key: str, value: str) -> str:
 
 def run_set(
     document: papis.document.DocumentLike,
-    to_set: Sequence[Tuple[str, AnyString]],
-    key_types: Dict[str, type],
+    to_set: Sequence[tuple[str, AnyString]],
+    key_types: dict[str, type],
 ) -> None:
     """
     Processes a list of ``to_set`` tuples and applies the resulting changes to the
@@ -175,9 +182,9 @@ def run_set(
     """
     from papis.paths import normalize_path
 
-    for key, value in to_set:
-        key, value = process_formatted_string_pair(key, value)
-        value = papis.format.format(value, document, default=str(value))
+    for orig_key, orig_value in to_set:
+        key, vformat = process_format_pattern_pair(orig_key, orig_value)
+        value = papis.format.format(vformat, document, default=str(vformat))
         value = try_parsing_str(key, value)
 
         if isinstance(value, int) and key_types.get(key) is str:
@@ -191,7 +198,7 @@ def run_set(
             )
         elif key == "files" and isinstance(value, list):
             # TODO: handle renames/deletions of files on disk
-            document[key] = list()
+            document[key] = []
             for file in value:
                 if isinstance(file, str):
                     document[key].append(normalize_path(file))
@@ -209,8 +216,8 @@ def run_set(
 
 def run_append(
     document: papis.document.DocumentLike,
-    to_append: Sequence[Tuple[str, AnyString]],
-    key_types: Dict[str, type],
+    to_append: Sequence[tuple[str, AnyString]],
+    key_types: dict[str, type],
     batch: bool,
 ) -> bool:
     """
@@ -225,38 +232,40 @@ def run_append(
     success = True
     processed_lists = set()
     supported_keys = key_types.keys() | document
-    for key, value in to_append:
-        key, value = process_formatted_string_pair(key, value)
+    for orig_key, orig_value in to_append:
+        key, vformat = process_format_pattern_pair(orig_key, orig_value)
 
-        if key in supported_keys:
-            value = papis.format.format(value, document, default=str(value))
-            type_doc = type(document.get(key))
-            type_conf = key_types.get(key)
-            if type_doc is str or (type_doc is type(None) and type_conf is str):
-                document[key] = document.setdefault(key, "") + value
-            elif type_doc is list or (type_doc is type(None) and type_conf is list):
-                value = try_parsing_str(key, value)
-                if key == "files":
-                    value = normalize_path(str(value))
-                document.setdefault(key, []).append(value)
-                processed_lists.add(key)
-            else:
-                logger.error(
-                    "Items of key '%s' have the type '%s', for which Papis "
-                    "doesn't support the append operation.",
-                    key,
-                    type(document[key]).__name__
-                    if document.get(key)
-                    else key_types[key].__name__,
-                )
-                if not batch:
-                    success = False
-                    break
-        else:
+        if key not in supported_keys:
             logger.error(
                 "We cannot append to key '%s', because we do not know the "
-                "intended type. Please use `papis update --set` instead.",
+                "intended type. Please use `papis update --set` instead or "
+                "add the key type to the `doctor-key-type-keys` configuration "
+                "setting (or `doctor-key-type-keys-extend`)",
                 key,
+            )
+            if not batch:
+                success = False
+                break
+
+        value = papis.format.format(vformat, document, default=str(vformat))
+        type_doc = type(document.get(key))
+        type_conf = key_types.get(key)
+        if type_doc is str or (type_doc is type(None) and type_conf is str):
+            document[key] = document.setdefault(key, "") + value
+        elif type_doc is list or (type_doc is type(None) and type_conf is list):
+            value = try_parsing_str(key, value)
+            if key == "files":
+                value = normalize_path(str(value))
+            document.setdefault(key, []).append(value)
+            processed_lists.add(key)
+        else:
+            logger.error(
+                "Items of key '%s' have the type '%s', for which Papis "
+                "doesn't support the append operation.",
+                key,
+                type(document[key]).__name__
+                if document.get(key)
+                else key_types[key].__name__,
             )
             if not batch:
                 success = False
@@ -270,7 +279,7 @@ def run_append(
 
 def run_remove(
     document: papis.document.DocumentLike,
-    to_remove: Sequence[Tuple[str, AnyString]],
+    to_remove: Sequence[tuple[str, AnyString]],
     batch: bool
 ) -> bool:
     """
@@ -281,8 +290,8 @@ def run_remove(
     :returns: A boolean indicating whether the update was successful.
     """
     success = True
-    for key, value in to_remove:
-        key, value = process_formatted_string_pair(key, value)
+    for orig_key, orig_value in to_remove:
+        key, value = process_format_pattern_pair(orig_key, orig_value)
 
         if key in document:
             if isinstance(document.get(key), list):
@@ -332,7 +341,7 @@ def run_drop(document: papis.document.DocumentLike, to_remove: Sequence[str]) ->
 
 def run_rename(
     document: papis.document.DocumentLike,
-    to_rename: Sequence[Tuple[str, AnyString, AnyString]],
+    to_rename: Sequence[tuple[str, AnyString, AnyString]],
     batch: bool,
 ) -> bool:
     """
@@ -353,7 +362,7 @@ def run_rename(
 
 def run(
     document: papis.document.Document,
-    data: Optional[Dict[str, Any]] = None,
+    data: dict[str, Any] | None = None,
     git: bool = False,
     auto_doctor: bool = False,
 ) -> None:
@@ -394,7 +403,7 @@ def run(
         papis.git.add_and_commit_resource(
             folder,
             info,
-            "Update information for '{}'".format(papis.document.describe(document)),
+            f"Update information for '{papis.document.describe(document)}'",
         )
 
 
@@ -428,7 +437,7 @@ def run(
     "to_set",
     help="Set the key to the given value.",
     multiple=True,
-    type=(str, papis.cli.FormattedStringParamType()),
+    type=(str, papis.cli.FormatPatternParamType()),
 )
 @click.option(
     "-d",
@@ -444,7 +453,7 @@ def run(
     "to_append",
     help="Append a value to a document key.",
     multiple=True,
-    type=(str, papis.cli.FormattedStringParamType()),
+    type=(str, papis.cli.FormatPatternParamType()),
 )
 @click.option(
     "-r",
@@ -452,7 +461,7 @@ def run(
     "to_remove",
     help="Remove an item from a list.",
     multiple=True,
-    type=(str, papis.cli.FormattedStringParamType()),
+    type=(str, papis.cli.FormatPatternParamType()),
 )
 @click.option(
     "-n",
@@ -461,8 +470,8 @@ def run(
     help="Rename an item in a list.",
     multiple=True,
     type=(str,
-          papis.cli.FormattedStringParamType(),
-          papis.cli.FormattedStringParamType()),
+          papis.cli.FormatPatternParamType(),
+          papis.cli.FormatPatternParamType()),
 )
 @papis.cli.bool_flag(
     "-b",
@@ -472,19 +481,19 @@ def run(
 def cli(
     query: str,
     git: bool,
-    doc_folder: Tuple[str, ...],
-    from_importer: List[Tuple[str, str]],
+    doc_folder: tuple[str, ...],
+    from_importer: list[tuple[str, str]],
     batch: bool,
     auto: bool,
     auto_doctor: bool,
     _all: bool,
-    sort_field: Optional[str],
+    sort_field: str | None,
     sort_reverse: bool,
-    to_set: List[Tuple[str, str]],
-    to_drop: List[str],
-    to_append: List[Tuple[str, str]],
-    to_remove: List[Tuple[str, str]],
-    to_rename: List[Tuple[str, str, str]],
+    to_set: list[tuple[str, str]],
+    to_drop: list[str],
+    to_append: list[tuple[str, str]],
+    to_remove: list[tuple[str, str]],
+    to_rename: list[tuple[str, str, str]],
 ) -> None:
     """Update document metadata."""
     success = True

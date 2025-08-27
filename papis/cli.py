@@ -1,36 +1,61 @@
-from typing import Optional, Any, Callable, List, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 import click
+from click.shell_completion import CompletionItem
 
 import papis.config
-import papis.pick
-import papis.document
 import papis.database
-
+import papis.document
+import papis.pick
 
 DecoratorCallable = Callable[..., Any]
 
 
-class FormattedStringParamType(click.ParamType):
+class FormatPatternParamType(click.ParamType):
     #: Name of the parameter type (shown in the command-line).
-    name: str = "formatted-text"
+    name: str = "pattern"
 
-    def convert(self,
+    def convert(self,  # noqa: PLR6301
                 value: Any,
-                param: Optional[click.Parameter],
-                ctx: Optional[click.Context]) -> Any:
+                param: click.Parameter | None,
+                ctx: click.Context | None) -> Any:
         """See :meth:`click.ParamType.convert`."""
-        from papis.strings import FormattedString
+        from papis.strings import FormatPattern
 
         # NOTE: this is required to handle default values which have a formatter
         # already set and we do not want to remove it
-        if isinstance(value, FormattedString):
+        if isinstance(value, FormatPattern):
             return value
 
         return str(value)
 
     def __repr__(self) -> str:
-        return "FORMATTEDSTRING"
+        return "FORMATPATTERN"
+
+
+class LibraryParamType(click.ParamType):
+    name: str = "library"
+
+    def shell_complete(self,  # noqa: PLR6301
+                       ctx: click.Context,
+                       param: click.Parameter,
+                       incomplete: str) -> list[CompletionItem]:
+
+        # Named libraries from Papis config
+        completions = [
+            CompletionItem(lib)
+            for lib in papis.config.get_libs()
+            if lib.startswith(incomplete)
+        ]
+
+        # Unnamed libraries (paths)
+        # Only shown if prefix exists
+        if incomplete:
+            paths = click.Path(exists=True, file_okay=False)
+            completions += paths.shell_complete(ctx, param, incomplete)
+
+        return completions
 
 
 def bool_flag(*args: Any, **kwargs: Any) -> DecoratorCallable:
@@ -118,8 +143,8 @@ def git_option(**attrs: Any) -> DecoratorCallable:
 
 def handle_doc_folder_or_query(
         query: str,
-        doc_folder: Optional[Union[str, Tuple[str, ...]]],
-        ) -> List[papis.document.Document]:
+        doc_folder: str | tuple[str, ...] | None,
+        ) -> list[papis.document.Document]:
     """Query database for documents.
 
     This handles the :func:`query_option` and :func:`doc_folder_option`
@@ -140,9 +165,9 @@ def handle_doc_folder_or_query(
 
 def handle_doc_folder_query_sort(
         query: str,
-        doc_folder: Optional[Union[str, Tuple[str, ...]]],
-        sort_field: Optional[str],
-        sort_reverse: bool) -> List[papis.document.Document]:
+        doc_folder: str | tuple[str, ...] | None,
+        sort_field: str | None,
+        sort_reverse: bool) -> list[papis.document.Document]:
     """Query database for documents.
 
     Similar to :func:`handle_doc_folder_or_query`, but also handles the
@@ -163,10 +188,10 @@ def handle_doc_folder_query_sort(
 
 def handle_doc_folder_query_all_sort(
         query: str,
-        doc_folder: Optional[Union[str, Tuple[str, ...]]],
-        sort_field: Optional[str],
+        doc_folder: str | tuple[str, ...] | None,
+        sort_field: str | None,
         sort_reverse: bool,
-        _all: bool) -> List[papis.document.Document]:
+        _all: bool) -> list[papis.document.Document]:
     """Query database for documents.
 
     Similar to :func:`handle_doc_folder_query_sort`, but also handles the

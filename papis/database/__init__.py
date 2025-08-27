@@ -1,12 +1,11 @@
-from typing import Optional, Dict
+import papis.logging
+from papis.library import Library
 
 from .base import Database
-from papis.library import Library
-import papis.logging
 
 logger = papis.logging.get_logger(__name__)
 
-DATABASES: Dict[Library, Database] = {}
+DATABASES: dict[Library, Database] = {}
 
 
 def _instantiate_database(backend_name: str, library: Library) -> Database:
@@ -20,7 +19,7 @@ def _instantiate_database(backend_name: str, library: Library) -> Database:
         raise ValueError(f"Invalid database backend: '{backend_name}'")
 
 
-def get(library_name: Optional[str] = None) -> Database:
+def get(library_name: str | None = None) -> Database:
     """Get the database for the library *library_name*.
 
     If *library_name* is *None*, then the current database is retrieved from

@@ -26,8 +26,6 @@ import re
 
 import click
 
-from typing import Set
-
 import papis.api
 import papis.cli
 import papis.document
@@ -59,7 +57,7 @@ def main(query: str, confirm: bool) -> None:
     )
 
     # Create an empty tag list
-    tag_list: Set[str] = set()
+    tag_list: set[str] = set()
     for doc in documents:
         tags = doc.get("tags")
         if tags is None:
@@ -81,7 +79,7 @@ def main(query: str, confirm: bool) -> None:
                          type(tags).__name__, papis.document.describe(doc))
             continue
 
-        tag_list = tag_list | set(tags)
+        tag_list |= set(tags)
 
     # if no tags are found, exit gracefully
     if not tag_list:
@@ -90,7 +88,7 @@ def main(query: str, confirm: bool) -> None:
 
     # Allow the list set (no duplicates) ) to be sorted into alphabetical
     # order and picked from
-    sorted_tags = sorted(list(tag_list))
+    sorted_tags = sorted(tag_list)
     picked_tags = papis.api.pick(sorted_tags)
     if len(picked_tags) == 1:
         picked_tag, = picked_tags
@@ -111,7 +109,7 @@ def main(query: str, confirm: bool) -> None:
 
         if confirm:
             if not confirm_dialog(
-                    "Open folder for '{}'?".format(papis.document.describe(doc))
+                    f"Open folder for '{papis.document.describe(doc)}'?"
                     ):
                 continue
 

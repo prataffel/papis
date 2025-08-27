@@ -5,7 +5,6 @@ import pytest
 
 import papis.api
 import papis.document
-
 from papis.testing import TemporaryConfiguration
 
 DOCTOR_RESOURCES = os.path.join(os.path.dirname(__file__), "resources")
@@ -14,7 +13,7 @@ DOCTOR_RESOURCES = os.path.join(os.path.dirname(__file__), "resources")
 def test_files_check(tmp_config: TemporaryConfiguration) -> None:
     from papis.commands.doctor import files_check
 
-    with tempfile.NamedTemporaryFile("w") as tmp:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tmp:
         folder = os.path.dirname(tmp.name)
         doc = papis.document.from_data({
             "files": [os.path.basename(tmp.name), "non-existent-file"],
@@ -296,9 +295,7 @@ def test_html_codes_check(tmp_config: TemporaryConfiguration) -> None:
     assert not errors
 
     for amp in ("&amp;", "&#38;", "&#x26;", "&Amp;"):
-        doc["title"] = (
-            "DNA sequencing with chain-terminating inhibitors {} stuff"
-            .format(amp))
+        doc["title"] = f"DNA sequencing with chain-terminating inhibitors {amp} stuff"
 
         error, = html_codes_check(doc)
         assert error.payload == "title"
@@ -393,3 +390,27 @@ def test_html_tags_check_jats(tmp_config: TemporaryConfiguration,
     error.fix_action()
     assert "\n".join(doc["abstract"].split()) == "\n".join(expected.strip().split())
     assert doc["abstract"] == expected.strip()
+
+
+def test_biblatex_issue_to_number(tmp_config: TemporaryConfiguration) -> None:
+    from papis.commands.doctor import biblatex_key_convert_check
+
+    doc = papis.document.from_data({
+        "author": "Sanger, F. and Nicklen, S. and Coulson, A. R.",
+        "title": "DNA sequencing with chain-terminating inhibitors",
+        "issue": "0",
+        "number": "0",
+        })
+
+    for value in (1, "3", "12", "No. 3", "1–2", "S1", "C2",  # noqa: RUF001
+                  "4B", "4es", "A", "B", "A-1", "Suppl. 3"):
+        del doc["number"]
+        doc["issue"] = value
+
+        error, = biblatex_key_convert_check(doc)
+        assert error.payload == "issue"
+        assert error.fix_action is not None
+
+        error.fix_action()
+        assert "issue" not in doc
+        assert doc["number"] == value

@@ -1,13 +1,11 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import click
-
-import papis.utils
 import papis.config
-import papis.importer
 import papis.document
+import papis.importer
 import papis.logging
+import papis.utils
 
 logger = papis.logging.get_logger(__name__)
 
@@ -49,12 +47,12 @@ DBLP_KEY_CONVERSION = [
     _k("doi", [{"key": "doi", "action": None}]),
     _k("url", [{"key": "url", "action": None}]),
     _k("type", [{"key": "type", "action": DBLP_TYPE_TO_BIBTEX.get}]),
-    _k("venue", [{"key": "journal", "action": lambda x: _dblp_journal(x)}]),
-    _k("authors", [{"key": "author_list", "action": lambda x: _dblp_authors(x)}]),
+    _k("venue", [{"key": "journal", "action": lambda x: _dblp_journal(x)}]),  # noqa: PLW0108
+    _k("authors", [{"key": "author_list", "action": lambda x: _dblp_authors(x)}]),  # noqa: PLW0108
 ]
 
 
-def _dblp_journal(name: str) -> Optional[str]:
+def _dblp_journal(name: str) -> str | None:
     import json
     result = json.loads(search(query=f"{name}$", api="venue"))
 
@@ -66,7 +64,7 @@ def _dblp_journal(name: str) -> Optional[str]:
     return str(journal) if journal else None
 
 
-def _dblp_authors(entries: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _dblp_authors(entries: dict[str, Any]) -> list[dict[str, Any]]:
     return [papis.document.split_author_name(author["text"])
             for author in entries["author"]]
 
@@ -100,9 +98,8 @@ def search(
 
     if not (0 < max_completions <= DBLP_MAX_COMPLETIONS):
         raise ValueError(
-            "Cannot request more than {} completions (got {})"
-            .format(DBLP_MAX_COMPLETIONS, max_completions)
-            )
+            f"Cannot request more than {DBLP_MAX_COMPLETIONS} completions "
+            f"(got {max_completions})")
 
     if output_format not in DBLP_FORMATS:
         raise ValueError(
@@ -127,7 +124,7 @@ def search(
     return response.content.decode()
 
 
-def get_data(query: str = "", max_results: int = 30) -> List[Dict[str, Any]]:
+def get_data(query: str = "", max_results: int = 30) -> list[dict[str, Any]]:
     import json
     response = json.loads(
         search(query=query, output_format="json", max_results=max_results)
@@ -157,43 +154,6 @@ def is_valid_dblp_key(key: str) -> bool:
         return response.ok
 
 
-@click.command("dblp")
-@click.pass_context
-@click.help_option("--help", "-h")
-@click.option(
-    "--query", "-q",
-    help="General query.",
-    default="")
-@click.option(
-    "--max", "-m", "max_results",
-    help="Maximum number of results.",
-    default=30)
-def explorer(
-        ctx: click.core.Context,
-        query: str,
-        max_results: int) -> None:
-    """
-    Look for documents on `dblp.org <https://dblp.org/>`__.
-
-    For example, to look for a document with the author "Albert Einstein" and
-    export it to a BibTeX file, you can call:
-
-    .. code:: sh
-
-        papis explore \\
-            dblp -a 'Albert einstein' \\
-            pick \\
-            export --format bibtex lib.bib
-    """
-    logger.info("Looking up DBLP documents...")
-
-    data = get_data(query=query, max_results=max_results)
-    docs = [papis.document.from_data(data=d) for d in data]
-    ctx.obj["documents"] += docs
-
-    logger.info("Found %d documents.", len(docs))
-
-
 class Importer(papis.importer.Importer):
 
     """Importer for DBLP data from a key or URL."""
@@ -202,7 +162,7 @@ class Importer(papis.importer.Importer):
         super().__init__(name="dblp", uri=uri)
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         if re.match(r".*dblp\.org.*\.html", uri):
             return Importer(uri)
         elif is_valid_dblp_key(uri):

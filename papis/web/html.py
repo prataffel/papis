@@ -1,7 +1,7 @@
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import dominate.tags as t
-
 
 HtmlGiver = Callable[[], t.html_tag]
 

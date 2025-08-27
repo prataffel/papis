@@ -1,7 +1,6 @@
 import re
-from typing import (
-    Any, List, Dict, Iterator, Tuple, Union, Pattern,
-    TypedDict, TYPE_CHECKING)
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import papis.config
 import papis.document
@@ -15,10 +14,10 @@ if TYPE_CHECKING:
 class MetaEquivalence(TypedDict):
     tag: str
     key: str
-    attrs: Dict[str, Union[str, Pattern[str]]]
+    attrs: dict[str, str | re.Pattern[str]]
 
 
-meta_equivalences: List[MetaEquivalence] = [
+meta_equivalences: list[MetaEquivalence] = [
     # google
     {"tag": "meta", "key": "abstract", "attrs": {"name": "description"}},
     {"tag": "meta", "key": "doi", "attrs": {"name": "doi"}},
@@ -59,60 +58,71 @@ meta_equivalences: List[MetaEquivalence] = [
     # dc.{id} style
     {"tag": "meta",
         "key": "publisher",
-        "attrs": {"name": re.compile("dc.publisher", re.I)}},
+        "attrs": {"name": re.compile(r"dc.publisher", re.I)}},
     {"tag": "meta",
         "key": "publisher",
-        "attrs": {"name": re.compile(".*st.publisher.*", re.I)}},
+        "attrs": {"name": re.compile(r".*st.publisher.*", re.I)}},
     {"tag": "meta",
-        "key": "date", "attrs": {"name": re.compile("dc.date", re.I)}},
+        "key": "date", "attrs": {"name": re.compile(r"dc.date", re.I)}},
     {"tag": "meta",
-        "key": "language", "attrs": {"name": re.compile("dc.language", re.I)}},
+        "key": "language", "attrs": {"name": re.compile(r"dc.language", re.I)}},
     {"tag": "meta",
         "key": "issue",
-        "attrs": {"name": re.compile("dc.citation.issue", re.I)}},
+        "attrs": {"name": re.compile(r"dc.citation.issue", re.I)}},
     {"tag": "meta",
             "key": "volume",
-            "attrs": {"name": re.compile("dc.citation.volume", re.I)}},
+            "attrs": {"name": re.compile(r"dc.citation.volume", re.I)}},
     {"tag": "meta",
             "key": "keywords",
-            "attrs": {"name": re.compile("dc.subject", re.I)}},
+            "attrs": {"name": re.compile(r"dc.subject", re.I)}},
     {"tag": "meta",
-            "key": "title", "attrs": {"name": re.compile("dc.title", re.I)}},
+            "key": "title", "attrs": {"name": re.compile(r"dc.title", re.I)}},
     {"tag": "meta",
-            "key": "type", "attrs": {"name": re.compile("dc.type", re.I)}},
-    {"tag": "meta",
-            "key": "abstract",
-            "attrs": {"name": re.compile("dc.description", re.I)}},
+            "key": "type", "attrs": {"name": re.compile(r"dc.type", re.I)}},
     {"tag": "meta",
             "key": "abstract",
-            "attrs": {"name": re.compile("dc.description.abstract", re.I)}},
+            "attrs": {"name": re.compile(r"dc.description", re.I)}},
+    {"tag": "meta",
+            "key": "abstract",
+            "attrs": {"name": re.compile(r"dc.description.abstract", re.I)}},
     {"tag": "meta",
             "key": "journal_abbrev",
-            "attrs": {"name": re.compile("dc.relation.ispartof", re.I)}},
+            "attrs": {"name": re.compile(r"dc.relation.ispartof", re.I)}},
     {"tag": "meta",
-            "key": "year", "attrs": {"name": re.compile("dc.issued", re.I)}},
+            "key": "year", "attrs": {"name": re.compile(r"dc.issued", re.I)}},
     {"tag": "meta",
             "key": "doi",
-            "attrs": {"name": re.compile("dc.identifier", re.I),
+            "attrs": {"name": re.compile(r"dc.identifier", re.I),
                       "scheme": "doi"}},
 ]
 
 
-def parse_meta_headers(soup: "bs4.BeautifulSoup") -> Dict[str, Any]:
-    data: Dict[str, Any] = {}
+def parse_meta_headers(soup: "bs4.BeautifulSoup") -> dict[str, Any]:
+    data: dict[str, Any] = {}
     for equiv in meta_equivalences:
         elements = soup.find_all(equiv["tag"], attrs=equiv["attrs"])
         if elements:
             value = elements[0].attrs.get("content")
             data[equiv["key"]] = str(value).replace("\r", "")
 
+    # ensure that author and author_list are in sync
     author_list = parse_meta_authors(soup)
     if author_list:
         data["author_list"] = author_list
         data["author"] = papis.document.author_list_to_author(data)
 
+    # convert firstpage / lastpage to pages
+    firstpage = data.get("firstpage")
+    if firstpage:
+        lastpage = data.get("lastpage")
+        if lastpage:
+            data["pages"] = f"{firstpage}--{lastpage}"
+        else:
+            data["pages"] = firstpage
+
     from papis.bibtex import bibtex_type_converter
 
+    # ensure we use a standard BibTeX type
     bib_type = data.get("type")
     if bib_type in bibtex_type_converter:
         data["type"] = bibtex_type_converter[bib_type]
@@ -120,12 +130,12 @@ def parse_meta_headers(soup: "bs4.BeautifulSoup") -> Dict[str, Any]:
     return data
 
 
-def parse_meta_authors(soup: "bs4.BeautifulSoup") -> List[Dict[str, Any]]:
+def parse_meta_authors(soup: "bs4.BeautifulSoup") -> list[dict[str, Any]]:
     # find author tags
     authors = soup.find_all(name="meta", attrs={"name": "citation_author"})
     if not authors:
         authors = soup.find_all(
-            name="meta", attrs={"name": re.compile("dc.creator", re.I)})
+            name="meta", attrs={"name": re.compile(r"dc.creator", re.I)})
 
     if not authors:
         return []
@@ -136,12 +146,12 @@ def parse_meta_authors(soup: "bs4.BeautifulSoup") -> List[Dict[str, Any]]:
         attrs={"name": "citation_author_institution"})
 
     if affs and len(authors) == len(affs):
-        authors_and_affs: Iterator[Tuple[Any, Any]] = zip(authors, affs)
+        authors_and_affs: Iterator[tuple[Any, Any]] = zip(authors, affs, strict=True)
     else:
         authors_and_affs = ((a, None) for a in authors)
 
     # convert to papis author format
-    author_list: List[Dict[str, Any]] = []
+    author_list: list[dict[str, Any]] = []
     for author, aff in authors_and_affs:
         fullname = papis.document.split_author_name(author.get("content"))
         affiliation = [{"name": aff.get("content")}] if aff else []

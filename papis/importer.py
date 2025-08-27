@@ -1,14 +1,12 @@
-from typing import Optional, List, Dict, Any, Callable, Type, TypeVar, TYPE_CHECKING
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import papis
-import papis.plugin
 import papis.logging
+import papis.plugin
 
-if TYPE_CHECKING:
-    import stevedore.extension
-
+#: Name of the entrypoint group for :class:`Importer` plugins.
 IMPORTER_EXTENSION_NAME = "papis.importer"
-
 #: Invariant :class:`TypeVar` bound to the :class:`Importer` class.
 ImporterT = TypeVar("ImporterT", bound="Importer")
 
@@ -44,8 +42,8 @@ class Context:
     """
 
     def __init__(self) -> None:
-        self.data: Dict[str, Any] = {}
-        self.files: List[str] = []
+        self.data: dict[str, Any] = {}
+        self.files: list[str] = []
 
     def __bool__(self) -> bool:
         return bool(self.files) or bool(self.data)
@@ -72,7 +70,7 @@ class Importer:
     def __init__(self,
                  uri: str = "",
                  name: str = "",
-                 ctx: Optional[Context] = None) -> None:
+                 ctx: Context | None = None) -> None:
         """
         :param uri: uri
         :param name: Name of the importer
@@ -89,7 +87,7 @@ class Importer:
         self.logger = papis.logging.get_logger(f"papis.importer.{self.name}")
 
     @classmethod
-    def match(cls, uri: str) -> Optional["Importer"]:
+    def match(cls, uri: str) -> "Importer | None":
         """Check if the importer can process the given URI.
 
         For example, an importer that supports links from the arXiv can check
@@ -112,7 +110,7 @@ class Importer:
             )
 
     @classmethod
-    def match_data(cls, data: Dict[str, Any]) -> Optional["Importer"]:
+    def match_data(cls, data: dict[str, Any]) -> "Importer | None":
         """Check if the importer can process the given metadata.
 
         This method can be used to search for valid URIs inside the *data* that
@@ -124,8 +122,8 @@ class Importer:
             *None* otherwise.
         """
         raise NotImplementedError(
-            "Matching metadata is not implemented for '{}.{}'"
-            .format(cls.__module__, cls.__name__))
+            "Matching metadata is not implemented for "
+            f"'{cls.__module__}.{cls.__name__}'")
 
     @cache
     def fetch(self) -> None:
@@ -153,8 +151,8 @@ class Importer:
         The imported metadata is stored in :attr:`~papis.importer.Importer.ctx`.
         """
         raise NotImplementedError(
-            "Fetching metadata is not implemented for '{}.{}'"
-            .format(type(self).__module__, type(self).__name__))
+            "Fetching metadata is not implemented for "
+            f"'{type(self).__module__}.{type(self).__name__}'")
 
     def fetch_files(self) -> None:
         """Fetch files from the given :attr:`~papis.importer.Importer.uri`.
@@ -162,31 +160,33 @@ class Importer:
         The imported files are stored in :attr:`~papis.importer.Importer.ctx`.
         """
         raise NotImplementedError(
-            "Fetching files is not implemented for '{}.{}'"
-            .format(type(self).__module__, type(self).__name__))
+            "Fetching files is not implemented for "
+            f"'{type(self).__module__}.{type(self).__name__}'")
 
     def __str__(self) -> str:
         return f"{type(self).__name__}({self.name}, uri={self.uri})"
 
 
-def get_import_mgr() -> "stevedore.extension.ExtensionManager":
-    """Retrieve the :class:`stevedore.extension.ExtensionManager` for
-    importer plugins.
-    """
-    return papis.plugin.get_extension_manager(IMPORTER_EXTENSION_NAME)
-
-
-def available_importers() -> List[str]:
+def available_importers() -> list[str]:
     """Get a list of available importer names."""
-    return papis.plugin.get_available_entrypoints(IMPORTER_EXTENSION_NAME)
+    from papis.plugin import get_plugin_names
+
+    return get_plugin_names(IMPORTER_EXTENSION_NAME)
 
 
-def get_importers() -> List[Type[Importer]]:
+def get_importers() -> list[type[Importer]]:
     """Get a list of available importer classes."""
-    return [e.plugin for e in get_import_mgr()]
+    from papis.plugin import get_plugins
+
+    return list(get_plugins(IMPORTER_EXTENSION_NAME).values())
 
 
-def get_importer_by_name(name: str) -> Type[Importer]:
+def get_importer_by_name(name: str) -> type[Importer]:
     """Get an importer class by *name*."""
-    imp: Type[Importer] = get_import_mgr()[name].plugin
-    return imp
+    from papis.plugin import InvalidPluginTypeError, get_plugin_by_name
+
+    cls = get_plugin_by_name(IMPORTER_EXTENSION_NAME, name)
+    if not issubclass(cls, Importer):
+        raise InvalidPluginTypeError(IMPORTER_EXTENSION_NAME, name)
+
+    return cls  # type: ignore[no-any-return]

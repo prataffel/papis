@@ -1,19 +1,15 @@
-from typing import List
-
 import dominate.tags as t
 import dominate.util as tu
 
 import papis.document
 
-import papis.web.header
-import papis.web.navbar
-import papis.web.paths as wp
-import papis.web.html as wh
-
 # widgets
 import papis.web.document
+import papis.web.header
+import papis.web.html as wh
+import papis.web.navbar
+import papis.web.paths as wp
 import papis.web.timeline
-
 
 QUERY_PLACEHOLDER = "insert query..."
 
@@ -27,7 +23,7 @@ def _clear_cache(libname: str) -> None:
 
 def _jquery_table(libname: str,
                   libfolder: str,
-                  documents: List[papis.document.Document]) -> t.html_tag:
+                  documents: list[papis.document.Document]) -> t.html_tag:
     script = """
     $(document).ready(function(){
         $('#pub_table').DataTable({
@@ -59,7 +55,7 @@ def html(pretitle: str,
          libname: str,
          libfolder: str,
          query: str,
-         documents: List[papis.document.Document]) -> t.html_tag:
+         documents: list[papis.document.Document]) -> t.html_tag:
     """
     Page for querying the Papis database and present the results.
     """

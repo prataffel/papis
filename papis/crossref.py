@@ -1,20 +1,16 @@
-import re
 import os
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+import re
+from typing import Any
 
 import doi
-import click
 
 import papis.config
-import papis.pick
-import papis.filetype
 import papis.document
-import papis.importer
 import papis.downloaders.base
+import papis.filetype
+import papis.importer
 import papis.logging
-
-if TYPE_CHECKING:
-    import habanero
+import papis.pick
 
 logger = papis.logging.get_logger(__name__)
 
@@ -23,74 +19,90 @@ KeyConversionPair = papis.document.KeyConversionPair
 # NOTE: the API JSON format is maintained at
 #   https://github.com/CrossRef/rest-api-doc/blob/master/api_format.md
 
-_filter_names = frozenset([
-    "has_funder", "funder", "location", "prefix", "member", "from_index_date",
-    "until_index_date", "from_deposit_date", "until_deposit_date",
-    "from_update_date", "until_update_date", "from_created_date",
-    "until_created_date", "from_pub_date", "until_pub_date",
-    "from_online_pub_date", "until_online_pub_date", "from_print_pub_date",
-    "until_print_pub_date", "from_posted_date", "until_posted_date",
-    "from_accepted_date", "until_accepted_date", "has_license",
-    "license_url", "license_version", "license_delay",
-    "has_full_text", "full_text_version", "full_text_type",
-    "full_text_application", "has_references", "has_archive",
-    "archive", "has_orcid", "has_authenticated_orcid",
-    "orcid", "issn", "type", "directory", "doi", "updates", "is_update",
-    "has_update_policy", "container_title", "category_name", "type",
-    "type_name", "award_number", "award_funder", "has_assertion",
-    "assertion_group", "assertion", "has_affiliation", "alternative_id",
-    "article_number", "has_abstract", "has_clinical_trial_number",
-    "content_domain", "has_content_domain", "has_crossmark_restriction",
-    "has_relation", "relation_type", "relation_object", "relation_object_type",
-    "public_references", "publisher_name", "affiliation",
+#: Filters used to narrow Crossref works queries. The official list of filters
+#: can be found in the
+#: `REST API documentation <https://github.com/CrossRef/rest-api-doc#filter-names>`__.
+CROSSREF_FILTER_NAMES = frozenset([
+    "has-funder", "funder", "location", "prefix", "member", "from-index-date",
+    "until-index-date", "from-deposit-date", "until-deposit-date",
+    "from-update-date", "until-update-date", "from-created-date",
+    "until-created-date", "from-pub-date", "until-pub-date",
+    "from-online-pub-date", "until-online-pub-date", "from-print-pub-date",
+    "until-print-pub-date", "from-posted-date", "until-posted-date",
+    "from-accepted-date", "until-accepted-date", "has-license", "license-url",
+    "license-version", "license-delay", "has-full-text", "full-text-version",
+    "full-text-type", "full-text-application", "has-references",
+    "reference-visibility", "has-archive", "archive", "has-orcid",
+    "has-authenticated-orcid", "orcid", "issn", "isbn", "type", "directory",
+    "doi", "updates", "is-update", "has-update-policy", "container-title",
+    "category-name", "type", "type-name", "award-number", "award-funder",
+    "has-assertion", "assertion-group", "assertion", "has-affiliation",
+    "alternative-id", "article-number", "has-abstract",
+    "has-clinical-trial-number", "content-domain", "has-content-domain",
+    "has-domain-restriction", "has-relation", "relation-type",
+    "relation-object",
 ])
 
-_types_values = frozenset([
-    "book-section", "monograph", "report", "peer-review", "book-track",
-    "journal-article", "book-part", "other", "book", "journal-volume",
-    "book-set", "reference-entry", "proceedings-article", "journal",
-    "component", "book-chapter", "proceedings-series", "report-series",
-    "proceedings", "standard", "reference-book", "posted-content",
-    "journal-issue", "dissertation", "dataset", "book-series", "edited-book",
-    "standard-series",
+#: Document types accepted by the Crossref API. The official list can be found
+#: in the `REST API documentation <https://api.crossref.org/types>`__.
+CROSSREF_TYPES = frozenset([
+    "book-section", "monograph", "report-component", "report", "peer-review",
+    "book-track", "journal-article", "book-part", "other", "book",
+    "journal-volume", "book-set", "reference-entry", "proceedings-article",
+    "journal", "component", "book-chapter", "proceedings-series",
+    "report-series", "proceedings", "database", "standard", "reference-book",
+    "posted-content", "journal-issue", "dissertation", "grant", "dataset",
+    "book-series", "edited-book",
 ])
 
-_sort_values = frozenset([
+#: Fields by which Crossref queries can be sorted by. The official list can be
+#: found in the
+#: `REST API documentation <https://github.com/CrossRef/rest-api-doc#sorting>`__.
+CROSSREF_SORT_VALUES = frozenset([
     "relevance", "score", "updated", "deposited", "indexed", "published",
     "published-print", "published-online", "issued", "is-referenced-by-count",
     "references-count",
 ])
 
+#: Sorting order. The official list can be found in the
+#: `REST API documentation <https://github.com/CrossRef/rest-api-doc#sorting>`__.
+CROSSREF_ORDER_VALUES = frozenset(["asc", "desc"])
 
-_order_values = frozenset(["asc", "desc"])
-
-
-type_converter = {
-    "book": "book",
-    "book-chapter": "inbook",
-    "book-part": "inbook",
+#: A mapping of Crossref types (see :data:`CROSSREF_TYPES`) to BibTeX types. This
+#: mapping is not official in any way and is just used by Papis.
+CROSSREF_TO_BIBTEX_CONVERTER = {
+    # NOTE: keep order the same as `CROSSREF_TYPES`, which is the order in the
+    # Crossref documentation, for easy comparison.
     "book-section": "inbook",
-    "book-series": "incollection",
-    "book-set": "incollection",
-    "book-track": "inbook",
-    "dataset": "misc",
-    "dissertation": "phdthesis",
-    "edited-book": "book",
-    "journal-article": "article",
-    "journal-issue": "misc",
-    "journal-volume": "article",
-    "monograph": "monograph",
-    "other": "misc",
-    "peer-review": "article",
-    "posted-content": "misc",
-    "proceedings-article": "inproceedings",
-    "proceedings": "inproceedings",
-    "proceedings-series": "inproceedings",
-    "reference-book": "book",
+    "monograph": "book",
+    "report-component": "incollection",
     "report": "report",
-    "report-series": "inproceedings",
-    "standard-series": "incollection",
-    "standard": "techreport",
+    "peer-review": "article",
+    "book-track": "inbook",
+    "journal-article": "article",
+    "book-part": "inbook",
+    "other": "misc",
+    "book": "book",
+    "journal-volume": "collection",
+    "book-set": "mvcollection",
+    "reference-entry": "inreference",
+    "proceedings-article": "inproceedings",
+    "journal": "collection",
+    "component": "incollection",
+    "book-chapter": "inbook",
+    "proceedings-series": "mvproceedings",
+    "report-series": "mvcollection",
+    "proceedings": "proceedings",
+    "database": "misc",
+    "standard": "report",
+    "reference-book": "reference",
+    "posted-content": "online",
+    "journal-issue": "collection",
+    "dissertation": "thesis",
+    "grant": "misc",
+    "dataset": "dataset",
+    "book-series": "incollection",
+    "edited-book": "book",
 }
 
 # NOTE: fields checked against the official API format
@@ -117,7 +129,7 @@ key_conversion = [
     }]),
     KeyConversionPair("isbn-type", [{
         "key": "isbn",
-        "action": lambda x: [i for i in x if i["type"] == "electronic"][0]["value"]
+        "action": lambda x: next(i for i in x if i["type"] == "electronic")["value"]
     }]),
     KeyConversionPair("page", [{
         "key": "pages",
@@ -125,7 +137,7 @@ key_conversion = [
     }]),
     KeyConversionPair("link", [{
         "key": str(papis.config.getstring("doc-url-key-name")),
-        "action": lambda x: _crossref_link(x)
+        "action": lambda x: _crossref_link(x)  # noqa: PLW0108
     }]),
     KeyConversionPair("issued", [
         {"key": "year", "action": lambda x: _crossref_date_parts(x, 0)},
@@ -149,12 +161,12 @@ key_conversion = [
         ]
     }]),
     KeyConversionPair("title", [
-        {"key": None, "action": lambda t: " ".join(t)}]),
+        {"key": None, "action": lambda t: " ".join(t)}]),  # noqa: PLW0108
     KeyConversionPair("type", [
-        {"key": None, "action": lambda t: type_converter[t]}]),
+        {"key": None, "action": lambda t: CROSSREF_TO_BIBTEX_CONVERTER[t]}]),
     KeyConversionPair("volume", [papis.document.EmptyKeyConversion]),
     KeyConversionPair("event", [  # Conferences
-        {"key": "venue", "action": lambda x: x["location"]},
+        {"key": "venue", "action": lambda x: x.get("location")},
         {"key": "booktitle", "action": lambda x: x["name"]},
         {"key": "year",
          "action": (lambda x:
@@ -166,8 +178,7 @@ key_conversion = [
 ]  # List[papis.document.KeyConversionPair]
 
 
-def _crossref_date_parts(entry: Dict[str, Any],
-                         i: int = 0) -> Optional[int]:
+def _crossref_date_parts(entry: dict[str, Any], i: int = 0) -> int | None:
     date_parts = entry.get("date-parts")
     if date_parts is None:
         return date_parts
@@ -179,10 +190,10 @@ def _crossref_date_parts(entry: Dict[str, Any],
     if not (0 <= i < len(parts)):
         return None
 
-    return int(parts[i])
+    return int(parts[i]) if parts[i] is not None else None
 
 
-def _crossref_link(entry: List[Dict[str, str]]) -> Optional[str]:
+def _crossref_link(entry: list[dict[str, str]]) -> str | None:
     if len(entry) == 1:
         return entry[0]["URL"]
 
@@ -195,29 +206,61 @@ def _crossref_link(entry: List[Dict[str, str]]) -> Optional[str]:
     return links[0] if links else None
 
 
-def crossref_data_to_papis_data(data: Dict[str, Any]) -> Dict[str, Any]:
+def crossref_data_to_papis_data(data: dict[str, Any]) -> dict[str, Any]:
     new_data = papis.document.keyconversion_to_data(key_conversion, data)
+
+    # ensure that author_list and author are consistent
     new_data["author"] = papis.document.author_list_to_author(new_data)
+
+    # special cleanup for APS journals
+    # xref: https://github.com/papis/papis/issues/1019
+    #       https://github.com/JabRef/jabref/issues/7019
+    #       https://journals.aps.org/pra/articleid
+    if "pages" not in new_data:
+        article_number = data.get("article-number", None)
+        if article_number:
+            # FIXME: add nicer DOI parsing (probably in `python-doi`)
+            # determine from DOI if the journal in question is an APS journal.
+            is_aps = False
+            doi = new_data.get("doi", "")
+            if "/" in doi:
+                prefix, _ = doi.split("/", maxsplit=1)
+                if "." in prefix:
+                    _, journal_id = prefix.split(".", maxsplit=1)
+                    is_aps = journal_id == "1103"
+
+            if is_aps:
+                new_data["pages"] = article_number
+
     return new_data
 
 
-def _get_crossref_works(**kwargs: Any) -> "habanero.request_class.Request":
+def _get_crossref_works(**kwargs: Any) -> dict[str, Any] | list[dict[str, Any]]:
     import habanero
-    cr = habanero.Crossref()
-    return cr.works(**kwargs)
+
+    from papis import PAPIS_USER_AGENT
+
+    cr = habanero.Crossref(
+        # TODO: Check if this is an acceptable value for the field. From the
+        # documentation, `mailto` is just meant to act as a contact point?
+        mailto="https://github.com/papis/papis/issues",
+        ua_string=PAPIS_USER_AGENT,
+    )
+
+    return cr.works(**kwargs)  # type: ignore[no-any-return]
 
 
 def get_data(
         query: str = "",
         author: str = "",
         title: str = "",
-        dois: Optional[List[str]] = None,
+        dois: list[str] | None = None,
         max_results: int = 0,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         sort: str = "score",
-        order: str = "desc") -> List[Dict[str, Any]]:
-    assert sort in _sort_values, "Sort value not valid"
-    assert order in _order_values, "Sort value not valid"
+        order: str = "desc") -> list[dict[str, Any]]:
+    assert sort in CROSSREF_SORT_VALUES, "Sort value not valid"
+    assert order in CROSSREF_ORDER_VALUES, "Order value not valid"
 
     if dois is None:
         dois = []
@@ -226,11 +269,12 @@ def get_data(
         filters = {}
 
     if filters:
-        unknown_filters = set(filters) - _filter_names
+        unknown_filters = set(filters) - CROSSREF_FILTER_NAMES
         if unknown_filters:
             raise ValueError(
                 "Unknown filters '{}'. Filter keys must be one of '{}'"
-                .format("', '".join(unknown_filters), "', '".join(_filter_names))
+                .format("', '".join(unknown_filters),
+                        "', '".join(CROSSREF_FILTER_NAMES))
             )
     data = {
         "query": query,
@@ -268,7 +312,7 @@ def get_data(
     return [crossref_data_to_papis_data(d) for d in docs]
 
 
-def doi_to_data(doi_string: str) -> Dict[str, Any]:
+def doi_to_data(doi_string: str) -> dict[str, Any]:
     """Search through Crossref and get the document metadata.
 
     :param doi_string: DOI or an url that contains a DOI.
@@ -284,62 +328,6 @@ def doi_to_data(doi_string: str) -> Dict[str, Any]:
         f"Could not retrieve data for DOI '{doi_string}' from Crossref")
 
 
-@click.command("crossref")
-@click.pass_context
-@click.help_option("--help", "-h")
-@click.option("--query", "-q", help="General query.", default="")
-@click.option("--author", "-a", help="Author of the query.", default="")
-@click.option("--title", "-t", help="Title of the query.", default="")
-@click.option(
-    "--max", "-m", "_ma", help="Maximum number of results.", default=20)
-@click.option(
-    "--filter", "-f", "_filters", help="Filters to apply.", default=(),
-    type=(click.Choice(list(_filter_names)), str),
-    multiple=True)
-@click.option(
-    "--order", "-o", help="Order of appearance according to sorting.",
-    default="desc", type=click.Choice(list(_order_values)), show_default=True)
-@click.option(
-    "--sort", "-s", help="Sorting parameter.", default="score",
-    type=click.Choice(list(_sort_values)), show_default=True)
-def explorer(
-        ctx: click.core.Context,
-        query: str,
-        author: str,
-        title: str,
-        _ma: int,
-        _filters: List[Tuple[str, str]],
-        sort: str,
-        order: str) -> None:
-    """
-    Look for documents on `Crossref <https://www.crossref.org/>`__.
-
-    For example, to look for a document with the author "Albert Einstein" and
-    export it to a BibTeX file, you can call:
-
-    .. code:: sh
-
-        papis explore \\
-            crossref -a 'Albert einstein' \\
-            pick \\
-            export --format bibtex lib.bib
-    """
-    logger.info("Looking up Crossref documents...")
-
-    data = get_data(
-        query=query,
-        author=author,
-        title=title,
-        max_results=_ma,
-        filters=dict(_filters),
-        sort=sort,
-        order=order)
-    docs = [papis.document.from_data(data=d) for d in data]
-    ctx.obj["documents"] += docs
-
-    logger.info("Found %s documents.", len(docs))
-
-
 class DoiFromPdfImporter(papis.importer.Importer):
 
     """Importer parsing a DOI from a PDF file and importing data from Crossref"""
@@ -347,10 +335,10 @@ class DoiFromPdfImporter(papis.importer.Importer):
     def __init__(self, uri: str) -> None:
         """The uri should be a filepath"""
         super().__init__(name="pdf2doi", uri=uri)
-        self._doi: Optional[str] = None
+        self._doi: str | None = None
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         """The uri should be a filepath"""
         filepath = uri
         if (
@@ -364,7 +352,7 @@ class DoiFromPdfImporter(papis.importer.Importer):
         return importer if importer.doi else None
 
     @property
-    def doi(self) -> Optional[str]:
+    def doi(self) -> str | None:
         if self._doi is None:
             self._doi = doi.pdf_to_doi(self.uri, maxlines=2000)
             self._doi = "" if self._doi is None else self._doi
@@ -394,7 +382,7 @@ class Importer(papis.importer.Importer):
         super().__init__(name="doi", uri=uri)
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         try:
             doi.validate_doi(uri)
         except ValueError:
@@ -403,8 +391,7 @@ class Importer(papis.importer.Importer):
             return Importer(uri=uri)
 
     @classmethod
-    def match_data(
-            cls, data: Dict[str, Any]) -> Optional[papis.importer.Importer]:
+    def match_data(cls, data: dict[str, Any]) -> papis.importer.Importer | None:
         if "doi" in data:
             return Importer(uri=data["doi"])
 
@@ -442,13 +429,12 @@ class FromCrossrefImporter(papis.importer.Importer):
         super().__init__(uri=uri, name="crossref")
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         # There is no way to check if it matches
         return None
 
     @classmethod
-    def match_data(
-            cls, data: Dict[str, Any]) -> Optional[papis.importer.Importer]:
+    def match_data(cls, data: dict[str, Any]) -> papis.importer.Importer | None:
         if "title" in data:
             return FromCrossrefImporter(uri=data["title"])
 
@@ -478,15 +464,15 @@ class Downloader(papis.downloaders.Downloader):
 
     def __init__(self, uri: str) -> None:
         super().__init__(uri=uri, name="doi")
-        self._doi: Optional[str] = None
+        self._doi: str | None = None
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.downloaders.Downloader]:
+    def match(cls, uri: str) -> papis.downloaders.Downloader | None:
         down = Downloader(uri)
         return down if down.doi else None
 
     @property
-    def doi(self) -> Optional[str]:
+    def doi(self) -> str | None:
         if self._doi is None:
             self._doi = doi.find_doi_in_text(self.uri)
             self._doi = "" if self._doi is None else self._doi

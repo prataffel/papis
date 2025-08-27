@@ -29,87 +29,19 @@ Command-line interface
 """
 
 import os
-from typing import Optional, Tuple, List, Callable, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import click
-import click.core
 
-import papis
-import papis.api
 import papis.cli
-import papis.config
 import papis.logging
-import papis.commands
-import papis.database
+from papis.commands import CommandPluginLoaderGroup
 
 if TYPE_CHECKING:
     import cProfile
 
 logger = papis.logging.get_logger(__name__)
-
-
-class ScriptLoaderGroup(click.Group):
-
-    scripts = papis.commands.get_all_scripts()
-    script_names = sorted(scripts)
-
-    def list_commands(self, ctx: click.core.Context) -> List[str]:
-        """List all matched commands in the command folder and in path
-
-        >>> group = ScriptLoaderGroup()
-        >>> rv = group.list_commands(None)
-        >>> len(rv) > 0
-        True
-        """
-        return self.script_names
-
-    def get_command(
-            self,
-            ctx: click.core.Context,
-            name: str) -> Optional[click.core.Command]:
-        """Get the command to be run
-
-        >>> group = ScriptLoaderGroup()
-        >>> cmd = group.get_command(None, 'add')
-        >>> cmd.name, cmd.help
-        ('add', 'Add...')
-        >>> group.get_command(None, 'this command does not exist')
-        Command ... is unknown!
-        """
-        try:
-            script = self.scripts[name]
-        except KeyError:
-            import difflib
-            matches = list(map(
-                str, difflib.get_close_matches(name, self.scripts, n=2)))
-
-            click.echo("Command '{name}' is unknown!".format(name=name))
-            if len(matches) == 1:
-                # return the match if there was only one match
-                click.echo(f"I suppose you meant: '{matches[0]}'")
-                script = self.scripts[matches[0]]
-            elif matches:
-                click.echo("Did you mean '{matches}'?"
-                           .format(matches="' or '".join(matches)))
-                return None
-            else:
-                return None
-
-        if script.plugin is not None:
-            return script.plugin
-
-        # If it gets here, it means that it is an external script
-        import copy
-        from papis.commands.external import external_cli
-        cli = copy.copy(external_cli)
-
-        from papis.commands.external import get_command_help
-        cli.context_settings["obj"] = script
-        if script.path is not None:
-            cli.help = get_command_help(script.path)
-        cli.name = script.command_name
-        cli.short_help = cli.help
-        return cli
 
 
 def generate_profile_writing_function(profiler: "cProfile.Profile",
@@ -122,7 +54,7 @@ def generate_profile_writing_function(profiler: "cProfile.Profile",
 
 
 @click.group(
-    cls=ScriptLoaderGroup,
+    cls=CommandPluginLoaderGroup,
     invoke_without_command=False)
 @click.help_option("--help", "-h")
 @click.version_option(version=papis.__version__)
@@ -138,7 +70,8 @@ def generate_profile_writing_function(profiler: "cProfile.Profile",
 @click.option(
     "-l", "--lib",
     help="Choose a library name or library path (unnamed library).",
-    default=lambda: papis.config.getstring("default-library"))
+    type=papis.cli.LibraryParamType(),
+    default=None)
 @click.option(
     "-c",
     "--config",
@@ -179,13 +112,14 @@ def run(ctx: click.Context,
         verbose: bool,
         profile: str,
         config: str,
-        lib: str,
+        lib: str | None,
         log: str,
-        logfile: Optional[str],
+        logfile: str | None,
         pick_lib: bool,
-        set_list: List[Tuple[str, str]],
+        set_list: list[tuple[str, str]],
         color: str,
-        np: Optional[int]) -> None:
+        np: int | None) -> None:
+    import papis.config
 
     if np:
         os.environ["PAPIS_NP"] = str(np)
@@ -218,20 +152,38 @@ def run(ctx: click.Context,
         if picked_libs:
             lib = picked_libs[0]
 
+    if lib is None:
+        # NOTE: check if the current folder is a configured library
+        libdir = os.getcwd()
+        config_lib_dirs = {
+            path: libname
+            for libname in papis.config.get_libs()
+            for path in papis.config.get_lib_from_name(libname).paths
+        }
+
+        while libdir != (nextlibdir := os.path.dirname(libdir)):
+            if libdir in config_lib_dirs:
+                lib = config_lib_dirs[libdir]
+                break
+
+            libdir = nextlibdir
+
+        # if the cwd does not match any library, use default library
+        if lib is None:
+            lib = papis.config.getstring("default-library")
+
     papis.config.set_lib_from_name(lib)
     library = papis.config.get_lib()
 
+    configuration = papis.config.get_configuration()
     if library.paths:
         # Now the library should be set, let us check if there is a
         # local configuration file there, and if there is one, then
         # merge its contents
         local_config_file = papis.config.getstring("local-config-file")
         for path in library.paths:
-            local_config_path = os.path.expanduser(
-                os.path.join(path, local_config_file))
-            papis.config.merge_configuration_from_path(
-                local_config_path,
-                papis.config.get_configuration())
+            local_config_path = os.path.join(path, local_config_file)
+            papis.config.merge_configuration_from_path(local_config_path, configuration)
     else:
         config_file = papis.config.get_config_file()
         if os.path.exists(config_file):
@@ -247,7 +199,7 @@ def run(ctx: click.Context,
                            "interactive setup.")
 
     # read in configuration from command-line
-    sections = papis.config.get_configuration().sections()
+    sections = configuration.sections()
     for pair in set_list:
         # NOTE: search for a matching section so that we can overwrite entries
         # from the command-line as well (the section takes precedence)

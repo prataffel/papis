@@ -1,7 +1,6 @@
 # See https://github.com/xlcnd/isbnlib for details
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-import click
 from isbnlib.registry import services as isbn_services
 
 import papis.config
@@ -15,7 +14,7 @@ ISBN_SERVICE_NAMES = list(isbn_services)
 
 
 def get_data(query: str = "",
-             service: Optional[str] = None) -> List[Dict[str, Any]]:
+             service: str | None = None) -> list[dict[str, Any]]:
     logger.debug("Trying to retrieve ISBN from query: '%s'.", query)
 
     if service is None:
@@ -36,24 +35,24 @@ def get_data(query: str = "",
         return []
 
 
-def data_to_papis(data: Dict[str, Any]) -> Dict[str, Any]:
+def data_to_papis(data: dict[str, Any]) -> dict[str, Any]:
     """
     Convert data from isbnlib into Papis formatted data.
 
     :param data: Dictionary with data
     :returns: Dictionary with Papis key names
     """
-    _k = papis.document.KeyConversionPair
+    cls = papis.document.KeyConversionPair
     key_conversion = [
-        _k("authors", [{
+        cls("authors", [{
             "key": "author_list",
             "action": papis.document.split_authors_name
         }]),
-        _k("isbn-13", [
+        cls("isbn-13", [
             {"key": "isbn", "action": None},
             {"key": "isbn-13", "action": None},
         ]),
-        _k("language", [
+        cls("language", [
             {"key": "language", "action": lambda x: x if x else "en"}
         ])
         ]
@@ -70,36 +69,6 @@ def data_to_papis(data: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-@click.command("isbn")
-@click.pass_context
-@click.help_option("--help", "-h")
-@click.option("--query", "-q", default=None)
-@click.option("--service", "-s",
-              default=ISBN_SERVICE_NAMES[0],
-              type=click.Choice(ISBN_SERVICE_NAMES))
-def explorer(ctx: click.core.Context, query: str, service: str) -> None:
-    """
-    Look for documents using `isbnlib <https://isbnlib.readthedocs.io/en/latest/>`__.
-
-    For example, to look for a document with the author "Albert Einstein" and
-    open it with Firefox, you can call:
-
-    .. code:: sh
-
-        papis explore \\
-            isbn -q 'Albert einstein' \\
-            pick \\
-            cmd 'firefox {doc[url]}'
-    """
-    logger.info("Looking up ISBN documents...")
-
-    data = get_data(query=query, service=service)
-    docs = [papis.document.from_data(data=d) for d in data]
-    ctx.obj["documents"] += docs
-
-    logger.info("Found %d documents.", len(docs))
-
-
 class Importer(papis.importer.Importer):
 
     """Importer for ISBN identifiers through isbnlib"""
@@ -108,7 +77,7 @@ class Importer(papis.importer.Importer):
         super().__init__(name="isbn", uri=uri)
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         import isbnlib
         if isbnlib.notisbn(uri):
             return None

@@ -1,9 +1,8 @@
 import re
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar
 
 import papis.document
 import papis.downloaders.base
-
 
 tf_to_bibtex_converter = {
     # FIXME: what other types are there?
@@ -14,13 +13,13 @@ _K = papis.document.KeyConversionPair
 article_key_conversion = [
     _K("type", [{"key": None, "action": lambda x: tf_to_bibtex_converter.get(x, x)}]),
     _K("date", [
-        {"key": "year", "action": lambda x: _parse_year(x)},
-        {"key": "month", "action": lambda x: _parse_month(x)},
+        {"key": "year", "action": lambda x: _parse_year(x)},  # noqa: PLW0108
+        {"key": "month", "action": lambda x: _parse_month(x)},  # noqa: PLW0108
     ])
 ]
 
 
-def _parse_year(date: str) -> Optional[int]:
+def _parse_year(date: str) -> int | None:
     from datetime import datetime
     try:
         return datetime.strptime(date, "%d %b %Y").year
@@ -28,7 +27,7 @@ def _parse_year(date: str) -> Optional[int]:
         return None
 
 
-def _parse_month(date: str) -> Optional[int]:
+def _parse_month(date: str) -> int | None:
     from datetime import datetime
     try:
         return datetime.strptime(date, "%d %b %Y").month
@@ -58,11 +57,11 @@ class Downloader(papis.downloaders.Downloader):
             )
 
     @classmethod
-    def match(cls, url: str) -> Optional[papis.downloaders.Downloader]:
+    def match(cls, url: str) -> papis.downloaders.Downloader | None:
         return (Downloader(url)
                 if re.match(r".*tandfonline.com.*", url) else None)
 
-    def get_data(self) -> Dict[str, Any]:
+    def get_data(self) -> dict[str, Any]:
         soup = self._get_soup()
         data = papis.downloaders.base.parse_meta_headers(soup)
 
@@ -74,7 +73,7 @@ class Downloader(papis.downloaders.Downloader):
 
         return data
 
-    def get_bibtex_url(self) -> Optional[str]:
+    def get_bibtex_url(self) -> str | None:
         doi = self.ctx.data.get("doi")
         if doi is None:
             return None
@@ -83,7 +82,7 @@ class Downloader(papis.downloaders.Downloader):
         self.logger.debug("Using BibTeX URL: '%s'.", url)
         return url
 
-    def get_document_url(self) -> Optional[str]:
+    def get_document_url(self) -> str | None:
         doi = self.ctx.data.get("doi")
         if doi is None:
             return None

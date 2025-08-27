@@ -1,10 +1,10 @@
 import os
+
 import pytest
 
 import papis.downloaders
 from papis.downloaders.iopscience import Downloader
-
-from papis.testing import TemporaryConfiguration, ResourceCache
+from papis.testing import ResourceCache, TemporaryConfiguration
 
 IOPSCIENCE_URLS = (
     "https://iopscience.iop.org/article/10.1088/0026-1394/12/4/002",
@@ -25,8 +25,8 @@ def test_iop_science_fetch(tmp_config: TemporaryConfiguration,
     assert down is not None
 
     uid = os.path.basename(url)
-    infile = "IOPScience_{}.html".format(uid)
-    outfile = "IOPScience_{}_Out.json".format(uid)
+    infile = f"IOPScience_{uid}.html"
+    outfile = f"IOPScience_{uid}_Out.json"
 
     monkeypatch.setattr(down, "_get_body",
                         lambda: resource_cache.get_remote_resource(infile, url))

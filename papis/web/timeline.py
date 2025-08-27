@@ -2,17 +2,17 @@
 This file creates a timeline of documents with year and possibly month
 information.
 """
-from typing import Any, Dict, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import dominate.tags as t
 import dominate.util as tu
 
 import papis.document
-
 import papis.web.paths as wp
 
 
-def widget(documents: Sequence[Dict[str, Any]],
+def widget(documents: Sequence[dict[str, Any]],
            libname: str,
            _id: str) -> None:
     """
@@ -20,13 +20,13 @@ def widget(documents: Sequence[Dict[str, Any]],
     """
     t.div(id=_id, style="width: 100%; height: 300px;")
 
-    def _make_text(_d: Dict[str, Any]) -> str:
-        _text = papis.document.describe(_d)
-        _href = wp.doc_server_path(libname, _d)
-        if _href:
-            return fr"<a href='{_href}'>{_text}<i class='fa fa-check'></i></a>"
+    def _make_text(_d: dict[str, Any]) -> str:
+        text = papis.document.describe(_d)
+        href = wp.doc_server_path(libname, _d)
+        if href:
+            return fr"<a href='{href}'>{text}<i class='fa fa-check'></i></a>"
 
-        return _text
+        return text
 
     json_data = [{"text": {"text": _make_text(d)},
                   "start_date": {"year": d["year"],

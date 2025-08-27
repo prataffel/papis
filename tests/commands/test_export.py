@@ -2,8 +2,7 @@ import os
 import tempfile
 
 import papis.database
-
-from papis.testing import TemporaryLibrary, PapisRunner
+from papis.testing import PapisRunner, TemporaryLibrary
 
 
 def test_export_run(tmp_library: TemporaryLibrary) -> None:
@@ -21,7 +20,7 @@ def test_export_run(tmp_library: TemporaryLibrary) -> None:
 
     # FIXME: not all fields are there and some don't match due to bibtex
     # pre- or post-processing
-    assert all(d["title"] == doc["title"] for d, doc in zip(data, docs))
+    assert all(d["title"] == doc["title"] for d, doc in zip(data, docs, strict=True))
 
     # json
     exported_json = run(docs, to_format="json")
@@ -36,7 +35,9 @@ def test_export_run(tmp_library: TemporaryLibrary) -> None:
     exported_yaml = run(docs, to_format="yaml")
     assert exported_yaml
 
-    with tempfile.NamedTemporaryFile("w+", delete=False, dir=tmp_library.tmpdir) as fd:
+    with tempfile.NamedTemporaryFile(
+            "w+", delete=False, dir=tmp_library.tmpdir, encoding="utf-8"
+            ) as fd:
         fd.write(exported_yaml)
         path = fd.name
 
@@ -76,7 +77,7 @@ def test_export_json_cli(tmp_library: TemporaryLibrary) -> None:
     assert result.exit_code == 0
     assert os.path.exists(outfile)
 
-    with open(outfile) as fd:
+    with open(outfile, encoding="utf-8") as fd:
         data_out = json.load(fd)
 
     assert len(data_out) == 1
@@ -106,10 +107,57 @@ def test_export_yaml_cli(tmp_library: TemporaryLibrary) -> None:
     assert result.exit_code == 0
     assert os.path.exists(outfile)
 
-    with open(outfile) as fd:
+    with open(outfile, encoding="utf-8") as fd:
         data_out = yaml.safe_load(fd)
 
     assert data_out == data
+
+
+def test_export_bibtex_append(tmp_library: TemporaryLibrary) -> None:
+    from papis.commands.export import cli, run
+
+    db = papis.database.get()
+
+    doc1 = db.query("krishnamurti")[0]
+    doc2 = db.query("popper")[0]
+    docs = [doc1, doc2]
+
+    text = run(docs, to_format="bibtex")
+    data = papis.bibtex.bibtex_to_dict(text)
+
+    cli_runner = PapisRunner()
+    outfile = os.path.join(tmp_library.tmpdir, "test.bib")
+
+    result = cli_runner.invoke(
+        cli,
+        ["--append", "--format", "bibtex", "--out", outfile, "krishnamurti"])
+
+    assert result.exit_code == 0
+    assert os.path.exists(outfile)
+
+    with open(outfile, encoding="utf-8") as fd:
+        single_text = fd.read()
+
+    single_data = papis.bibtex.bibtex_to_dict(single_text)
+    assert len(single_data) == 1
+
+    result = cli_runner.invoke(
+        cli,
+        ["--append", "--format", "bibtex", "--out", outfile, "popper"])
+
+    assert result.exit_code == 0
+    assert os.path.exists(outfile)
+
+    with open(outfile, encoding="utf-8") as fd:
+        appended_text = fd.read()
+
+    appended_data = papis.bibtex.bibtex_to_dict(appended_text)
+    assert len(appended_data) == len(data)
+
+    # NOTE: The intention is that these will match, this is a problem to be
+    # solved. On --append, formatting doesn't match because test.bib has no
+    # newline at end-of-file.
+    assert appended_text != text
 
 
 def test_export_folder_cli(tmp_library: TemporaryLibrary) -> None:

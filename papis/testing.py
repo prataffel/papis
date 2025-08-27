@@ -1,25 +1,26 @@
 import os
 import random
 import tempfile
+from collections.abc import Iterator, Sequence
 from types import TracebackType
-from typing import Any, ClassVar, Dict, Iterator, Optional, Sequence, Type
+from typing import Any, ClassVar
 
-import pytest
 import click
 import click.testing
-from _pytest.fixtures import SubRequest
+import pytest
 from _pytest.config import Config
 from _pytest.config.argparsing import Parser
+from _pytest.fixtures import SubRequest
 
 PAPIS_UPDATE_RESOURCES = os.environ.get("PAPIS_UPDATE_RESOURCES", "none").lower()
-if PAPIS_UPDATE_RESOURCES not in ("none", "remote", "local", "both"):
+if PAPIS_UPDATE_RESOURCES not in {"none", "remote", "local", "both"}:
     raise ValueError("unsupported value of 'PAPIS_UPDATE_RESOURCES'")
 
 
-def create_random_file(filetype: Optional[str] = None,
-                       prefix: Optional[str] = None,
-                       suffix: Optional[str] = None,
-                       dir: Optional[str] = None) -> str:
+def create_random_file(filetype: str | None = None,
+                       prefix: str | None = None,
+                       suffix: str | None = None,
+                       dir: str | None = None) -> str:
     """Create a random file with the correct magic signature.
 
     This function creates random empty files that can be used for testing. It
@@ -53,16 +54,15 @@ def create_random_file(filetype: Optional[str] = None,
             )
         suffix = ".epub" if suffix is None else suffix
     elif filetype == "djvu":
-        buf = bytes(
-            [0x41, 0x54, 0x26, 0x54, 0x46, 0x4F, 0x52, 0x4D]
-            + [0x00, 0x00, 0x00, 0x00]
-            + [0x44, 0x4A, 0x56, 0x4D]
-            )
+        buf = bytes([
+            0x41, 0x54, 0x26, 0x54, 0x46, 0x4F, 0x52, 0x4D,
+            0x00, 0x00, 0x00, 0x00,
+            0x44, 0x4A, 0x56, 0x4D])
         suffix = ".djvu" if suffix is None else suffix
     elif filetype == "text":
         buf = b"papis-test-file-contents"
     else:
-        raise ValueError("Unknown file type: '{}'".format(filetype))
+        raise ValueError(f"Unknown file type: '{filetype}'")
 
     with tempfile.NamedTemporaryFile(
             dir=dir, suffix=suffix, prefix=prefix,
@@ -100,7 +100,7 @@ PAPIS_TEST_DOCUMENTS = [
         "note": "First turing machine paper foundation of cs",
         "pages": "230--265",
         "title": "On Computable Numbers with an Application to the Entscheidungsproblem",           # noqa: E501
-        "url": "https://api.wiley.com/onlinelibrary/tdm/v1/articles/10.1112%2Fplms%2Fs2-42.1.230",  # noqa: E501
+        "url": "https://api.wiley.com/onlinelibrary/tdm/v1/articles/10.1112%2Fplms%2Fs2-42.1.230",
         "volume": "s2-42",
         "year": 1937,
         "_test_files": 2,
@@ -152,13 +152,13 @@ def populate_library(libdir: str) -> None:
 
     :arg libdir: an existing empty library directory.
     """
-    from papis.id import ID_KEY_NAME, compute_an_id
     from papis.document import Document
+    from papis.id import ID_KEY_NAME, compute_an_id
 
     for i, data in enumerate(PAPIS_TEST_DOCUMENTS):
         doc_data = data.copy()
 
-        folder_path = os.path.join(libdir, "test_doc_{}".format(i))
+        folder_path = os.path.join(libdir, f"test_doc_{i}")
         os.makedirs(folder_path)
 
         # add files
@@ -201,10 +201,10 @@ class TemporaryConfiguration:
 
     def __init__(self,
                  prefix: str = "papis-test-",
-                 settings: Optional[Dict[str, Any]] = None,
+                 settings: dict[str, Any] | None = None,
                  overwrite: bool = False) -> None:
         #: A set of settings to be added to the configuration on creation
-        self.settings: Optional[Dict[str, Any]] = settings
+        self.settings: dict[str, Any] | None = settings
         #: If *True*, any configuration settings are overwritten by *settings*.
         self.overwrite: bool = overwrite
 
@@ -221,8 +221,8 @@ class TemporaryConfiguration:
         #: Prefix for the temporary directory created for the test.
         self.prefix = prefix
 
-        self._tmpdir: Optional[tempfile.TemporaryDirectory[str]] = None
-        self._monkeypatch: Optional[pytest.MonkeyPatch] = None
+        self._tmpdir: tempfile.TemporaryDirectory[str] | None = None
+        self._monkeypatch: pytest.MonkeyPatch | None = None
 
     @property
     def tmpdir(self) -> str:
@@ -231,9 +231,9 @@ class TemporaryConfiguration:
         return self._tmpdir.name
 
     def create_random_file(self,
-                           filetype: Optional[str] = None,
-                           prefix: Optional[str] = None,
-                           suffix: Optional[str] = None) -> str:
+                           filetype: str | None = None,
+                           prefix: str | None = None,
+                           suffix: str | None = None) -> str:
         """Create a random file in the :attr:`tmpdir` using `create_random_file`."""
         return create_random_file(
             filetype, suffix=suffix, prefix=prefix,
@@ -241,7 +241,7 @@ class TemporaryConfiguration:
 
     def __enter__(self) -> "TemporaryConfiguration":
         if self._tmpdir is not None:
-            raise ValueError("{!r} cannot be nested".format(type(self).__name__))
+            raise ValueError(f"'{type(self).__name__}' cannot be nested")
 
         # create directories and files
         self._monkeypatch = pytest.MonkeyPatch()
@@ -292,20 +292,19 @@ class TemporaryConfiguration:
 
         # write settings
         import configparser
-        with open(self.configfile, "w") as fd:
+        with open(self.configfile, "w", encoding="utf-8") as fd:
             config = configparser.ConfigParser()
             config.read_dict(settings)
             config.write(fd)
 
         # monkeypatch globals
         import papis.format
-        self._monkeypatch.setattr(papis.format, "FORMATTER", {})
+        self._monkeypatch.setattr(papis.format, "FORMATTER_CACHE", {})
 
         import papis.database
         self._monkeypatch.setattr(papis.database, "DATABASES", {})
         # FIXME: may need to also add the following:
         #   * reset papis.bibtex globals
-        #   * reset papis.plugin managers
 
         # reload configuration
         papis.config.set_config_file(self.configfile)
@@ -321,9 +320,9 @@ class TemporaryConfiguration:
         return self
 
     def __exit__(self,
-                 exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[TracebackType]) -> None:
+                 exc_type: type[BaseException] | None,
+                 exc_val: BaseException | None,
+                 exc_tb: TracebackType | None) -> None:
         # cleanup
         if self._monkeypatch:
             self._monkeypatch.undo()
@@ -347,7 +346,7 @@ class TemporaryLibrary(TemporaryConfiguration):
     """
 
     def __init__(self,
-                 settings: Optional[Dict[str, Any]] = None,
+                 settings: dict[str, Any] | None = None,
                  use_git: bool = False,
                  populate: bool = True) -> None:
         super().__init__(settings=settings)
@@ -458,9 +457,9 @@ class ResourceCache:
     def get_remote_resource(
             self, filename: str, url: str,
             force: bool = False,
-            params: Optional[Dict[str, str]] = None,
-            headers: Optional[Dict[str, str]] = None,
-            cookies: Optional[Dict[str, str]] = None,
+            params: dict[str, str] | None = None,
+            headers: dict[str, str] | None = None,
+            cookies: dict[str, str] | None = None,
             ) -> bytes:
         """Retrieve a remote resource from the resource cache.
 
@@ -479,7 +478,7 @@ class ResourceCache:
         filename = os.path.join(self.cachedir, filename)
 
         force = force or not os.path.exists(filename)
-        if force or PAPIS_UPDATE_RESOURCES in ("remote", "both"):
+        if force or PAPIS_UPDATE_RESOURCES in {"remote", "both"}:
             if headers is None:
                 headers = {}
 
@@ -510,11 +509,13 @@ class ResourceCache:
         _, ext = os.path.splitext(filename)
 
         import json
+
         import yaml
+
         import papis.yaml
 
         force = force or not os.path.exists(filename)
-        if force or PAPIS_UPDATE_RESOURCES in ("local", "both"):
+        if force or PAPIS_UPDATE_RESOURCES in {"local", "both"}:
             assert data is not None
             with open(filename, "w", encoding="utf-8") as f:
                 if ext == ".json":
@@ -524,22 +525,22 @@ class ResourceCache:
                         sort_keys=True,
                         ensure_ascii=False,
                         )
-                elif ext == ".yml" or ext == ".yaml":
+                elif ext in {".yml", ".yaml"}:
                     yaml.dump(
                         data, f,
                         indent=2,
                         sort_keys=True,
                         )
                 else:
-                    raise ValueError("Unknown file extension: '{}'".format(ext))
+                    raise ValueError(f"Unknown file extension: '{ext}'")
 
         with open(filename, encoding="utf-8") as f:
             if ext == ".json":
                 return json.load(f)
-            elif ext == ".yml" or ext == ".yaml":
+            elif ext in {".yml", ".yaml"}:
                 return papis.yaml.yaml_to_data(filename)
             else:
-                raise ValueError("Unknown file extension: '{}'".format(ext))
+                raise ValueError(f"Unknown file extension: '{ext}'")
 
 
 @pytest.fixture(autouse=True)

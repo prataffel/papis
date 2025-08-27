@@ -1,12 +1,11 @@
 import os
-import pytest
 import shutil
 import sys
 
-from typing import List
+import pytest
 
 from papis.document import Document
-from papis.testing import TemporaryLibrary, PapisRunner
+from papis.testing import PapisRunner, TemporaryLibrary
 
 
 def make_document(name: str, dir: str, nfiles: int = 0) -> Document:
@@ -40,7 +39,7 @@ def test_add_run(tmp_library: TemporaryLibrary, nfiles: int = 5) -> None:
     from papis.commands.add import run
 
     # add non-existent file
-    with pytest.raises(OSError, match="exist.pdf"):
+    with pytest.raises(OSError, match=r"exist.pdf"):
         run(
             ["/path/does/not/exist.pdf"],
             data={"author": "Bohm", "title": "My effect"})
@@ -92,7 +91,7 @@ def test_add_auto_doctor_run(tmp_library: TemporaryLibrary) -> None:
         "year": "2009",
         "ref": "#{2FJT2E3A}"
     }
-    paths: List[str] = []
+    paths: list[str] = []
 
     import papis.config
 
@@ -179,8 +178,6 @@ def test_add_folder_name_cli(tmp_library: TemporaryLibrary) -> None:
 
     files = doc.get_files()
     assert len(files) == 1
-
-    basename, _ = os.path.splitext(os.path.basename(files[0]))
     assert os.path.basename(files[0]) == f"test-the-apology{ext}"
 
 
@@ -238,11 +235,11 @@ def test_add_bibtex_cli(tmp_library: TemporaryLibrary,
     )
 
     bibfile = os.path.join(tmp_library.tmpdir, "test-add.bib")
-    with open(bibfile, "w") as f:
+    with open(bibfile, "w", encoding="utf-8") as f:
         f.write(bibtex_string)
 
-    import papis.utils
     import papis.tui.utils
+    import papis.utils
 
     with monkeypatch.context() as m:
         m.setattr(papis.utils, "update_doc_from_data_interactively",

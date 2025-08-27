@@ -1,6 +1,6 @@
-import tempfile
-import pickle
 import os
+import pickle
+import tempfile
 
 import pytest
 
@@ -83,7 +83,7 @@ def test_main_features() -> None:
 
 def test_to_bibtex(tmp_config: TemporaryConfiguration) -> None:
     import papis.config
-    import papis.bibtex
+    from papis.exporters.bibtex import exporter
 
     papis.config.set("bibtex-journal-key", "journal_abbrev")
     doc = papis.document.from_data({
@@ -95,15 +95,16 @@ def test_to_bibtex(tmp_config: TemporaryConfiguration) -> None:
         })
     doc.set_folder("path/to/superfolder")
 
-    assert papis.bibtex.to_bibtex(doc) == (
+    assert exporter([doc]) == (
         "@book{Hello_Fernan_3200BCE,\n"
         "  author = {Fernandez, Gilgamesh},\n"
         "  journal = {jcp},\n"
         "  title = {Hello},\n"
         "  year = {3200BCE},\n"
         "}")
+
     doc["journal_abbrev"] = "j"
-    assert papis.bibtex.to_bibtex(doc) == (
+    assert exporter([doc]) == (
         "@book{Hello_Fernan_3200BCE,\n"
         "  author = {Fernandez, Gilgamesh},\n"
         "  journal = {j},\n"
@@ -113,7 +114,7 @@ def test_to_bibtex(tmp_config: TemporaryConfiguration) -> None:
     del doc["title"]
 
     doc["ref"] = "hello1992"
-    assert papis.bibtex.to_bibtex(doc) == (
+    assert exporter([doc]) == (
         "@book{hello1992,\n"
         "  author = {Fernandez, Gilgamesh},\n"
         "  journal = {j},\n"
@@ -205,6 +206,7 @@ def test_multiple_authors_separator(tmp_config: TemporaryConfiguration,
 
 def test_author_separator_heuristics(tmp_config: TemporaryConfiguration) -> None:
     import re
+
     from papis.document import guess_authors_separator, split_authors_name
 
     def is_comma_and_re(sep: str) -> None:

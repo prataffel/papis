@@ -6,6 +6,7 @@ from papis.testing import TemporaryConfiguration, TemporaryLibrary
 
 def test_unique_suffixes() -> None:
     import string
+
     from papis.paths import unique_suffixes
 
     expected = [
@@ -13,10 +14,11 @@ def test_unique_suffixes() -> None:
         "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
         "AA", "AB", "AC", "AD"
     ]
-    for value, output in zip(expected, unique_suffixes(string.ascii_uppercase)):
+    for value, output in zip(expected, unique_suffixes(string.ascii_uppercase),
+                             strict=False):
         assert output == value
 
-    for value, output in zip(expected[3:], unique_suffixes(skip=3)):
+    for value, output in zip(expected[3:], unique_suffixes(skip=3), strict=False):
         assert output == value.lower()
 
 
@@ -36,10 +38,18 @@ def test_normalize_path(tmp_config: TemporaryConfiguration) -> None:
     assert normalize_path("масса и енергиа.pdf") == "massa-i-energia.pdf"
     assert normalize_path("الامير الصغير.pdf") == "lmyr-lsgyr.pdf"
 
+    assert (
+        normalize_path("post-truth: a meta-analysis", extra_chars=" ", separator="")
+        == "posttruth a metaanalysis"
+    )
+    assert (
+        normalize_path("post-truth: a meta-analysis", extra_chars="-", separator=" ")
+        == "post-truth a meta-analysis"
+    )
+
 
 def test_normalize_path_config(tmp_config: TemporaryConfiguration) -> None:
     import papis.config
-
     from papis.paths import normalize_path
 
     papis.config.set("doc-paths-lowercase", "False")
@@ -141,8 +151,8 @@ def test_get_document_file_name_format(tmp_library: TemporaryLibrary) -> None:
 
 
 def test_get_document_folder(tmp_library: TemporaryLibrary) -> None:
-    from papis.document import from_data
     import papis.database
+    from papis.document import from_data
 
     db = papis.database.get()
     doc = from_data({
@@ -213,7 +223,7 @@ def test_rename_document_files(tmp_config: TemporaryConfiguration) -> None:
     new_files = rename_document_files(doc, [
         tmp_config.create_random_file("pdf"),
         tmp_config.create_random_file("text", suffix=".md"),
-        ], file_name_format="x {doc[year]} {doc[author]}")
+        ], file_name_format="x {doc[year]} {doc[author]}", allow_remote=False)
 
     assert new_files == ["x-1913-niels-bohr.pdf", "x-1913-niels-bohr.md"]
 
@@ -222,14 +232,14 @@ def test_rename_document_files(tmp_config: TemporaryConfiguration) -> None:
         tmp_config.create_random_file("pdf"),
         tmp_config.create_random_file("pdf"),
         tmp_config.create_random_file("text", suffix=".md"),
-        ])
+        ], allow_remote=False)
 
     new_files = rename_document_files(doc, [
         tmp_config.create_random_file("pdf"),
         tmp_config.create_random_file("pdf"),
         tmp_config.create_random_file("text", suffix=".md"),
         tmp_config.create_random_file("djvu"),
-        ])
+        ], allow_remote=False)
 
     assert new_files == [
         "1913-niels-bohr-b.pdf",
@@ -244,7 +254,9 @@ def test_rename_document_files(tmp_config: TemporaryConfiguration) -> None:
         tmp_config.create_random_file("text", suffix=".md"),
         tmp_config.create_random_file("djvu"),
         ]
-    new_files = rename_document_files(doc, orig_files, file_name_format=False)
+    new_files = rename_document_files(doc, orig_files,
+                                      file_name_format=False,
+                                      allow_remote=False)
 
     from papis.paths import normalize_path
     assert new_files == [

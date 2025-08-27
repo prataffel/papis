@@ -1,10 +1,11 @@
-"""This module serves as an lightweight interface for git related functions.
 """
-from typing import Sequence
+This module serves as an lightweight interface for ``git`` related functions.
+"""
 
-import papis.utils
+from collections.abc import Sequence
+
 import papis.logging
-
+import papis.utils
 
 logger = papis.logging.get_logger(__name__)
 

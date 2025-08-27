@@ -1,13 +1,13 @@
+import pytest
+
 import papis.config
 import papis.database
-
-import pytest
 from papis.testing import TemporaryLibrary
 
 PAPIS_DB_BACKENDS = ["papis"]
 
 try:
-    import whoosh       # noqa: F401
+    import whoosh  # noqa: F401
     PAPIS_DB_BACKENDS.append("whoosh")
 except ImportError:
     pass
@@ -44,8 +44,7 @@ def test_database_update(tmp_library: TemporaryLibrary) -> None:
     db = papis.database.get()
     docs = db.get_all_documents()
 
-    title = "title for {}::test_update".format(__name__)
-    print(title)
+    title = f"title for {__name__}::test_update"
     doc = docs[0]
     doc["title"] = title
     doc.save()

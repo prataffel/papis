@@ -19,12 +19,13 @@ Sphinx configuration.
 
 import os
 import sys
-import docutils
-from typing import Any, Callable, ClassVar, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any, ClassVar
 
+import docutils
+from docutils.parsers.rst import Directive
 from sphinx import application
 from sphinx_click.ext import ClickDirective
-from docutils.parsers.rst import Directive
 
 
 class CustomClickDirective(ClickDirective):     # type: ignore[misc]
@@ -87,16 +88,15 @@ class PapisConfig(Directive):
     #: Number of required arguments to the directive.
     required_arguments: ClassVar[int] = 1
     #: A description of the arguments, mapping names to validator functions.
-    option_spec: ClassVar[Dict[str, Callable[[str], Any]]] = {
+    option_spec: ClassVar[dict[str, Callable[[str], Any]]] = {
         "default": str, "section": str, "type": str
         }
     add_index: int = True
 
     def run(self) -> Any:
         # NOTE: these are imported to register additional config settings
-        import papis.commands.bibtex    # noqa: F401
-
-        from papis.config import get_general_settings_name, get_default_settings
+        import papis.commands.bibtex  # noqa: F401
+        from papis.config import get_default_settings, get_general_settings_name
 
         default_settings = get_default_settings()
         key = self.arguments[0]
@@ -145,7 +145,7 @@ class PapisConfig(Directive):
 
 def make_link_resolve(
         github_project_url: str,
-        revision: str) -> Callable[[str, Dict[str, Any]], Optional[str]]:
+        revision: str) -> Callable[[str, dict[str, Any]], str | None]:
     """Create a function that can be used with ``sphinx.ext.linkcode``.
 
     This can be used in the ``conf.py`` file as:
@@ -158,7 +158,7 @@ def make_link_resolve(
     :param revision: the revision to which to point to, e.g. ``main``.
     """
 
-    def linkcode_resolve(domain: str, info: Dict[str, Any]) -> Optional[str]:
+    def linkcode_resolve(domain: str, info: dict[str, Any]) -> str | None:
         url = None
         if domain != "py" or not info["module"]:
             return url
@@ -195,8 +195,7 @@ def make_link_resolve(
             linestart, linestop = lineno, lineno + len(source) - 1
 
         return (
-            "{}/blob/{}/{}#L{}-L{}"
-            .format(github_project_url, revision, filepath, linestart, linestop)
+            f"{github_project_url}/blob/{revision}/{filepath}#L{linestart}-L{linestop}"
         )
 
     return linkcode_resolve
@@ -207,7 +206,7 @@ def remove_module_docstring(app: application.Sphinx,
                             name: str,
                             obj: object,
                             options: Any,
-                            lines: List[str]) -> None:
+                            lines: list[str]) -> None:
     # NOTE: this is used to remove the module documentation for commands so that
     # we can show the module members in the `Developer API Reference` section
     # without the tutorial / examples parts.
@@ -215,7 +214,7 @@ def remove_module_docstring(app: application.Sphinx,
         del lines[:]
 
 
-def setup(app: application.Sphinx) -> Dict[str, Any]:
+def setup(app: application.Sphinx) -> dict[str, Any]:
     from sphinx.util.docfields import Field
 
     app.setup_extension("sphinx_click.ext")

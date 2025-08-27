@@ -1,25 +1,28 @@
 import os
 import pathlib
 import sys
-from typing import Iterable, Iterator, Literal, List, Optional, Union
+from collections.abc import Iterable, Iterator
+from typing import Literal
 from warnings import warn
 
 import papis.config
 import papis.logging
-from papis.strings import AnyString, FormattedString
-from papis.document import DocumentLike
-from papis.document import from_data
+from papis.document import DocumentLike, from_data
+from papis.strings import AnyString, FormatPattern
 
 logger = papis.logging.get_logger(__name__)
 
 #: A union type for allowable paths.
-PathLike = Union[pathlib.Path, str]
+PathLike = pathlib.Path | str
 
 # NOTE: private error codes for Windows
 WIN_ERROR_PRIVILEGE_NOT_HELD = 1314
 
+# NOTE: private placeholder used to allow hyphens in slugified paths.
+_SLUGIFY_HYPHEN_PLACEHOLDER = "slugifyhyphenplaceholder"
 
-def unique_suffixes(chars: Optional[str] = None, skip: int = 0) -> Iterator[str]:
+
+def unique_suffixes(chars: str | None = None, skip: int = 0) -> Iterator[str]:
     """Creates an infinite list of suffixes based on *chars*.
 
     This creates a generator object capable of iterating over lists to
@@ -38,10 +41,10 @@ def unique_suffixes(chars: Optional[str] = None, skip: int = 0) -> Iterator[str]
     >>> s = unique_suffixes(skip=3)
     >>> next(s)
     'd'
-    """  # noqa: E501
+    """
 
     import string
-    from itertools import count, product, islice
+    from itertools import count, islice, product
 
     def ids() -> Iterator[str]:
         inputs = string.ascii_lowercase if chars is None else chars
@@ -54,9 +57,9 @@ def unique_suffixes(chars: Optional[str] = None, skip: int = 0) -> Iterator[str]
 
 
 def normalize_path(path: str, *,
-                   lowercase: Optional[bool] = None,
-                   extra_chars: Optional[str] = None,
-                   separator: Optional[str] = None) -> str:
+                   lowercase: bool | None = None,
+                   extra_chars: str | None = None,
+                   separator: str | None = None) -> str:
     """Clean a path to only contain visible ASCII characters.
 
     This function will create ASCII strings that can be safely used as file names
@@ -88,14 +91,27 @@ def normalize_path(path: str, *,
     else:
         regex_pattern = fr"[^a-zA-Z0-9.{extra_chars}]+"
 
+    # NOTE: workaround slugify forcefully replacing hyphens
+    # see https://github.com/un33k/python-slugify/issues/107
+    if "-" in extra_chars:
+        path = (
+            path
+            .replace("\u2010", _SLUGIFY_HYPHEN_PLACEHOLDER)
+            .replace("-", _SLUGIFY_HYPHEN_PLACEHOLDER))
+
     import slugify
 
-    return str(slugify.slugify(
+    result = slugify.slugify(
         path,
         word_boundary=True,
         separator=separator,
         regex_pattern=regex_pattern,
-        lowercase=lowercase))
+        lowercase=lowercase)
+
+    if "-" in extra_chars:
+        result = result.replace(_SLUGIFY_HYPHEN_PLACEHOLDER, "-")
+
+    return result
 
 
 def is_relative_to(path: PathLike, other: PathLike) -> bool:
@@ -105,14 +121,7 @@ def is_relative_to(path: PathLike, other: PathLike) -> bool:
 
     :returns: *True* if *path* is relative to the *other* path.
     """
-    if sys.version_info >= (3, 9):
-        return pathlib.Path(path).is_relative_to(other)
-
-    # NOTE: this should give the same result as above for older versions
-    try:
-        return not os.path.relpath(path, start=other).startswith("..")
-    except ValueError:
-        return False
+    return pathlib.Path(path).is_relative_to(other)
 
 
 def symlink(src: PathLike, dst: PathLike) -> None:
@@ -133,14 +142,15 @@ def symlink(src: PathLike, dst: PathLike) -> None:
             raise OSError(exc.errno,
                           "Failed to link due to insufficient permissions. You "
                           "can try again after enabling the 'Developer mode' "
-                          "and restarting.", exc.filename, exc.winerror, exc.filename2)
+                          "and restarting.", exc.filename, exc.winerror, exc.filename2
+                          ) from None
 
 
 def get_document_file_name(
         doc: DocumentLike,
         orig_path: PathLike,
         suffix: str = "", *,
-        file_name_format: Optional[Union[AnyString, Literal[False]]] = None,
+        file_name_format: AnyString | Literal[False] | None = None,
         base_name_limit: int = 150) -> str:
     """Generate a file name based on *orig_path* for the document *doc*.
 
@@ -155,7 +165,7 @@ def get_document_file_name(
 
     :param orig_path: an input file path
     :param suffix: a suffix to be appended to the end of the new file name.
-    :param file_name_format: a format string used to construct a new file name
+    :param file_name_format: a format pattern used to construct a new file name
         from the document data (see :func:`papis.format.format`). This value
         defaults to :confval:`add-file-name` if not provided.
     :param base_name_limit: a maximum character length of the file name. This
@@ -167,7 +177,7 @@ def get_document_file_name(
 
     if file_name_format is None:
         try:
-            file_name_format = papis.config.getformattedstring("add-file-name")
+            file_name_format = papis.config.getformatpattern("add-file-name")
         except ValueError:
             file_name_format = None
 
@@ -202,9 +212,9 @@ def get_document_file_name(
 
 def get_document_hash_folder(
         doc: DocumentLike,
-        paths: Optional[Iterable[str]] = None, *,
+        paths: Iterable[str] | None = None, *,
         file_read_limit: int = 2000,
-        seed: Optional[str] = None) -> str:
+        seed: str | None = None) -> str:
     warn("'get_document_hash_folder' is deprecated and will be removed. "
          "Use 'papis.paths.get_document_folder' instead.",
          DeprecationWarning, stacklevel=2)
@@ -216,7 +226,7 @@ def get_document_hash_folder(
 def get_document_folder(
         doc: DocumentLike,
         dirname: PathLike, *,
-        folder_name_format: Optional[AnyString] = None) -> str:
+        folder_name_format: AnyString | None = None) -> str:
     """Generate a folder name for the document at *dirname*.
 
     This function uses :confval:`add-folder-name` to generate a folder name for
@@ -237,16 +247,16 @@ def get_document_folder(
 
     if folder_name_format is None:
         try:
-            folder_name_format = papis.config.getformattedstring("add-folder-name")
+            folder_name_format = papis.config.getformatpattern("add-folder-name")
         except ValueError:
             folder_name_format = None
 
     if isinstance(folder_name_format, str):
-        folder_name_format = FormattedString(None, folder_name_format)
+        folder_name_format = FormatPattern(None, folder_name_format)
 
     # try to get a folder name from folder_name_format
     if folder_name_format:
-        tmp_path = os.path.normpath(os.path.join(dirname, folder_name_format.value))
+        tmp_path = os.path.normpath(os.path.join(dirname, folder_name_format.pattern))
 
         # NOTE: the folder_name_format can contain subfolders, so we go through
         # them one by one and expand them here to get the full path
@@ -254,13 +264,13 @@ def get_document_folder(
         # could contain a backslash and ruin the hierarchy -- instead we clean it
         # and remove any such characters from messing up the folder name
 
-        components: List[str] = []
+        components: list[str] = []
         while tmp_path != dirname and is_relative_to(tmp_path, dirname):
             tmp_component = os.path.basename(tmp_path)
 
             try:
                 tmp_component = papis.format.format(
-                    FormattedString(folder_name_format.formatter, tmp_component),
+                    FormatPattern(folder_name_format.formatter, tmp_component),
                     doc)
             except papis.format.FormatFailedError as exc:
                 logger.error("Could not format path for document.", exc_info=exc)
@@ -323,7 +333,7 @@ def _make_unique_file(filename: PathLike) -> str:
 def get_document_unique_folder(
         doc: DocumentLike,
         dirname: PathLike, *,
-        folder_name_format: Optional[AnyString] = None) -> str:
+        folder_name_format: AnyString | None = None) -> str:
     """A wrapper around :func:`get_document_folder` that ensures that the
     folder is unique by adding suffixes.
 
@@ -337,16 +347,39 @@ def get_document_unique_folder(
     return _make_unique_folder(out_folder_path)
 
 
-def _is_remote(uri: str) -> bool:
+def is_remote_file(uri: str) -> bool:
     return uri.startswith("http://") or uri.startswith("https://")
+
+
+def download_remote_files(in_document_paths: Iterable[str]) -> list[str | None]:
+    """
+    Download all remote filepaths that are provided in the document list.
+
+    :param in_document_paths: a list of filename paths and URLs.
+    :returns: a list of files, where each remote file is replaced with a
+        temporary local file. If there is an error while downloading the
+        remote file, *None* is used instead.
+    """
+
+    from papis.downloaders import download_document
+
+    new_files: list[str | None] = []
+    for in_file_path in in_document_paths:
+        if is_remote_file(in_file_path):
+            local_in_file_path = download_document(in_file_path)
+        else:
+            local_in_file_path = in_file_path
+        new_files.append(local_in_file_path)
+
+    return new_files
 
 
 def rename_document_files(
         doc: DocumentLike,
         in_document_paths: Iterable[str], *,
-        file_name_format: Optional[Union[AnyString, Literal[False]]] = None,
-        allow_remote: bool = True,
-        ) -> List[str]:
+        allow_remote: bool | None = None,
+        file_name_format: AnyString | Literal[False] | None = None,
+        ) -> list[str]:
     """Rename *in_document_paths* according to *file_name_format* and ensure
     uniqueness.
 
@@ -355,7 +388,7 @@ def rename_document_files(
     name is found, a suffix is generated using :func:`unique_suffixes` and
     appended to the new file.
 
-    :param file_name_format: a format string used to construct a new file name
+    :param file_name_format: a format pattern used to construct a new file name
         from the document data (see :func:`papis.format.format`). This value
         defaults to :confval:`add-file-name` if not provided.
     :param allow_remote: if *True*, *in_document_paths* can also be remote
@@ -365,9 +398,22 @@ def rename_document_files(
     """
     if file_name_format is None:
         try:
-            file_name_format = papis.config.getformattedstring("add-file-name")
+            file_name_format = papis.config.getformatpattern("add-file-name")
         except ValueError:
             file_name_format = None
+
+    if allow_remote is not None:
+        warn("The argument `allow_remote` to `rename_document_files` is deprecated "
+             "and will be removed in version 0.16. Use `download_remote_files` "
+             "instead to ensure all files are local.",
+             DeprecationWarning, stacklevel=2)
+    else:
+        allow_remote = True
+
+    if allow_remote:
+        warn("`rename_document_files` will stop automatically downloading remote "
+             "files starting with version 0.16. Use `download_remote_files` "
+             "instead.", DeprecationWarning, stacklevel=2)
 
     from collections import Counter
 
@@ -383,11 +429,8 @@ def rename_document_files(
         if not in_file_path:
             continue
 
-        if _is_remote(in_file_path):
-            if allow_remote:
-                local_in_file_path = download_document(in_file_path)
-            else:
-                local_in_file_path = ""
+        if is_remote_file(in_file_path):
+            local_in_file_path = download_document(in_file_path) if allow_remote else ""
         else:
             local_in_file_path = in_file_path
 

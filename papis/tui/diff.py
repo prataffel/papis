@@ -1,12 +1,12 @@
-from typing import (
-    Dict, Any, List, Union, NamedTuple, Callable, Optional)
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 from prompt_toolkit import Application, print_formatted_text
-from prompt_toolkit.layout.containers import HSplit, Window, WindowAlign
 from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
+from prompt_toolkit.layout.containers import HSplit, Window, WindowAlign
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 
 
 class Action(NamedTuple):
@@ -15,9 +15,9 @@ class Action(NamedTuple):
     action: Callable[[KeyPressEvent], None]
 
 
-def prompt(text: Union[str, FormattedText],
+def prompt(text: str | FormattedText,
            title: str = "",
-           actions: Optional[List[Action]] = None,
+           actions: list[Action] | None = None,
            **kwargs: Any
            ) -> None:
     """A simple and extensible prompt helper routine
@@ -81,7 +81,7 @@ def diffshow(texta: str,
              title: str = "",
              namea: str = "a",
              nameb: str = "b",
-             actions: Optional[List[Action]] = None
+             actions: list[Action] | None = None
              ) -> None:
     """Show the difference of texta and textb with a prompt.
 
@@ -96,33 +96,30 @@ def diffshow(texta: str,
     assert isinstance(textb, str)
 
     import difflib
-    # diffs = difflib.unified_diff(
-    #         str(texta).splitlines(keepends=True),
-    #         str(textb).splitlines(keepends=True),
-    #         fromfile=namea, tofile=nameb)
 
-    diffs = difflib.ndiff(
-        texta.splitlines(keepends=True),
-        textb.splitlines(keepends=True),)
+    diffs = list(
+        difflib.ndiff(
+            texta.splitlines(keepends=True),
+            textb.splitlines(keepends=True)))
 
-    _diffs = list(diffs)
-    if len(_diffs) == 1:
+    if len(diffs) == 1:
         # this means that _diffs is just a new line character, so there is
         # no real difference, in that case then do not instantiate a prompt
         return
 
-    raw_text = _diffs + [
+    raw_text = [
+        *diffs,
         "^^^^^^^^^\ndiff from\n",
         f"----- {namea}\n",
         f"+++++ {nameb}\n",
     ]
 
     formatted_text = FormattedText([
-        line.startswith("@") and ("fg:ansimagenta bg:ansiblack", line)
-        or line.startswith("+") and ("fg:ansigreen bg:ansiblack", line)
-        or line.startswith("-") and ("fg:ansired bg:ansiblack", line)
-        or line.startswith("?") and ("fg:ansiyellow bg:ansiblack", line)
-        or line.startswith("^^^") and ("bg:ansiblack fg:ansimagenta", line)
+        (line.startswith("@") and ("fg:ansimagenta bg:ansiblack", line))
+        or (line.startswith("+") and ("fg:ansigreen bg:ansiblack", line))
+        or (line.startswith("-") and ("fg:ansired bg:ansiblack", line))
+        or (line.startswith("?") and ("fg:ansiyellow bg:ansiblack", line))
+        or (line.startswith("^^^") and ("bg:ansiblack fg:ansimagenta", line))
         or ("", line)
         for line in raw_text
     ])
@@ -132,11 +129,11 @@ def diffshow(texta: str,
            actions=actions)
 
 
-def diffdict(dicta: Dict[str, Any],
-             dictb: Dict[str, Any],
+def diffdict(dicta: dict[str, Any],
+             dictb: dict[str, Any],
              namea: str = "a",
              nameb: str = "b"
-             ) -> Dict[str, Any]:
+             ) -> dict[str, Any]:
     """
     Compute the difference of two dictionaries.
 
@@ -213,7 +210,7 @@ def diffdict(dicta: Dict[str, Any],
 
     actions = [
         Action(name="Add", key="y", action=lambda e: oset(e, "add", True)),
-    ] + actions
+        *actions]
 
     for key in keys:
 

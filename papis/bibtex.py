@@ -7,17 +7,14 @@ the `manual`_).
 """
 import os
 import string
-from typing import Optional, List, Dict, Any, Iterator
-
-import click
+from typing import TYPE_CHECKING, Any
 
 import papis.config
-import papis.document
-import papis.importer
-import papis.filetype
-import papis.document
-import papis.format
 import papis.logging
+from papis.importer import Importer as ImporterBase
+
+if TYPE_CHECKING:
+    import papis.document
 
 logger = papis.logging.get_logger(__name__)
 
@@ -227,7 +224,7 @@ bibtex_type_required_keys_aliases = {
 #: A mapping of arbitrary types to BibLaTeX types in :data:`bibtex_types`. This
 #: mapping can be used when translating from other software, e.g. Zotero has
 #: custom fields in its `schema <https://github.com/zotero/zotero-schema>`__.
-bibtex_type_converter: Dict[str, str] = {
+bibtex_type_converter: dict[str, str] = {
     # Zotero
     "annotation": "misc",
     "attachment": "misc",
@@ -270,7 +267,7 @@ bibtex_type_converter: Dict[str, str] = {
 
 #: A mapping of arbitrary fields to BibLaTeX fields in :data:`bibtex_keys`. This
 #: mapping can be used when translating from other software.
-bibtex_key_converter: Dict[str, str] = {
+bibtex_key_converter: dict[str, str] = {
     "abstractNote": "abstract",
     "university": "school",
     "conferenceName": "eventtitle",
@@ -296,12 +293,7 @@ ref_allowed_characters = r"([^a-zA-Z0-9._]+|(?<!\\)[._])"
 bibtex_verbatim_fields = frozenset({"doi", "eprint", "file", "pdf", "url", "urlraw"})
 
 
-def exporter(documents: List[papis.document.Document]) -> str:
-    """Convert documents into a list of BibLaTeX entries"""
-    return "\n\n".join(to_bibtex_multiple(documents))
-
-
-class Importer(papis.importer.Importer):
+class Importer(ImporterBase):
     """
     Importer that parses BibTeX files or strings.
 
@@ -313,15 +305,18 @@ class Importer(papis.importer.Importer):
         super().__init__(name="bibtex", **kwargs)
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
-        if (not os.path.exists(uri) or os.path.isdir(uri)
-                or papis.filetype.get_document_extension(uri) == "pdf"):
+    def match(cls, uri: str) -> "ImporterBase | None":
+        from papis.filetype import get_document_extension
+
+        if (not os.path.exists(uri)
+                or os.path.isdir(uri)
+                or get_document_extension(uri) == "pdf"):
             return None
         importer = Importer(uri=uri)
         importer.fetch()
         return importer if importer.ctx else None
 
-    def fetch_data(self: papis.importer.Importer) -> Any:
+    def fetch_data(self) -> Any:
         self.logger.info("Reading input file or string: '%s'.", self.uri)
 
         from papis.downloaders import download_document
@@ -352,30 +347,7 @@ class Importer(papis.importer.Importer):
         self.ctx.data = bib_data[0]
 
 
-@click.command("bibtex")
-@click.pass_context
-@click.argument("bibfile", type=click.Path(exists=True))
-@click.help_option("--help", "-h")
-def explorer(ctx: click.core.Context, bibfile: str) -> None:
-    """Import documents from a BibTeX file.
-
-    This explorer can be used as:
-
-    .. code:: sh
-
-        papis explore bibtex 'lib.bib' pick
-    """
-    logger.info("Reading BibTeX file '%s'...", bibfile)
-
-    docs = [
-        papis.document.from_data(d)
-        for d in bibtex_to_dict(bibfile)]
-    ctx.obj["documents"] += docs
-
-    logger.info("Found %d documents.", len(docs))
-
-
-def bibtexparser_entry_to_papis(entry: Dict[str, Any]) -> Dict[str, Any]:
+def bibtexparser_entry_to_papis(entry: dict[str, Any]) -> dict[str, Any]:
     """Convert the keys of a BibTeX entry parsed by :mod:`bibtexparser` to a
     papis-compatible format.
 
@@ -384,30 +356,30 @@ def bibtexparser_entry_to_papis(entry: Dict[str, Any]) -> Dict[str, Any]:
     """
     from bibtexparser.latexenc import latex_to_unicode
 
-    _k = papis.document.KeyConversionPair
+    from papis.document import (
+        KeyConversionPair,
+        keyconversion_to_data,
+        split_authors_name,
+    )
+
     key_conversion = [
-        _k("ID", [{"key": "ref", "action": None}]),
-        _k("ENTRYTYPE", [{"key": "type", "action": None}]),
-        _k("link", [{"key": "url", "action": None}]),
-        _k("title", [{
+        KeyConversionPair("ID", [{"key": "ref", "action": None}]),
+        KeyConversionPair("ENTRYTYPE", [{"key": "type", "action": None}]),
+        KeyConversionPair("link", [{"key": "url", "action": None}]),
+        KeyConversionPair("title", [{
             "key": "title",
             "action": lambda x: latex_to_unicode(x.replace("\n", " "))
             }]),
-        _k("author", [{
+        KeyConversionPair("author", [{
             "key": "author_list",
-            "action": lambda author: (
-                papis.document.split_authors_name([author], separator="and")
-                )
+            "action": lambda author: split_authors_name([author], separator="and")
             }]),
     ]
 
-    result = papis.document.keyconversion_to_data(
-        key_conversion, entry, keep_unknown_keys=True)
-
-    return result
+    return keyconversion_to_data(key_conversion, entry, keep_unknown_keys=True)
 
 
-def bibtex_to_dict(bibtex: str) -> List[papis.document.DocumentLike]:
+def bibtex_to_dict(bibtex: str) -> list["papis.document.DocumentLike"]:
     """Convert a BibTeX file (or string) to a list of Papis-compatible dictionaries.
 
     This will convert an entry like:
@@ -443,7 +415,7 @@ def bibtex_to_dict(bibtex: str) -> List[papis.document.DocumentLike]:
     logging.getLogger("bibtexparser.bparser").setLevel(logging.WARNING)
 
     if os.path.exists(bibtex):
-        with open(bibtex) as fd:
+        with open(bibtex, encoding="utf-8") as fd:
             logger.debug("Reading in file: '%s'.", bibtex)
             text = fd.read()
     else:
@@ -472,7 +444,7 @@ def ref_cleanup(ref: str) -> str:
     return str(ref).strip()
 
 
-def create_reference(doc: Dict[str, Any], force: bool = False) -> str:
+def create_reference(doc: dict[str, Any], force: bool = False) -> str:
     """Try to create a reference for the document *doc*.
 
     If the document *doc* does not have a ``"ref"`` key, this function attempts
@@ -492,9 +464,11 @@ def create_reference(doc: Dict[str, Any], force: bool = False) -> str:
     if not force and ref:
         return ref
 
+    import papis.format
+
     # Otherwise, try to generate one somehow
     try:
-        ref_format = papis.config.getformattedstring("ref-format")
+        ref_format = papis.config.getformatpattern("ref-format")
         ref = papis.format.format(ref_format, doc, default="")
     except ValueError:
         ref = ""
@@ -515,8 +489,19 @@ def create_reference(doc: Dict[str, Any], force: bool = False) -> str:
     return ref_cleanup(ref)
 
 
-def author_list_to_author(doc: papis.document.Document,
-                          author_list: List[Dict[str, Any]]) -> str:
+def author_list_to_author(doc: "papis.document.Document",
+                          author_list: list[dict[str, Any]]) -> str:
+    """Construct the BibTeX author field from the document's *author_list*.
+
+    This function is similar to :func:`papis.document.author_list_to_author`,
+    but takes into account some BibTeX peculiarities:
+    * The separator between the authors is always *"and"* and
+    * Authors with only a family or given names are surrounded by curly brackets.
+
+    :returns: an author string.
+    """
+    from papis.document import describe
+
     if not author_list:
         return ""
 
@@ -526,7 +511,7 @@ def author_list_to_author(doc: papis.document.Document,
     for author in author_list:
         if not isinstance(author, dict):
             logger.error("Incorrect 'author_list' type (author is not a 'dict'): %s",
-                         papis.document.describe(doc))
+                         describe(doc))
             continue
 
         family = author.get("family")
@@ -544,129 +529,12 @@ def author_list_to_author(doc: papis.document.Document,
     return " and ".join(result)
 
 
-def to_bibtex_multiple(documents: List[papis.document.Document]) -> Iterator[str]:
-    for doc in documents:
-        bib = to_bibtex(doc)
-        if not bib:
-            logger.warning("Skipping document export: '%s'.",
-                           doc.get_info_file())
-            continue
+def to_bibtex(document: "papis.document.Document", *, indent: int = 2) -> str:
+    from warnings import warn
 
-        yield bib
+    warn("'papis.bibtex.to_bibtex' is deprecated and will be removed in Papis v0.16. "
+         "Use 'papis.exporters.bibtex.to_bibtex' instead.",
+         DeprecationWarning, stacklevel=2)
 
-
-def to_bibtex(document: papis.document.Document, *, indent: int = 2) -> str:
-    """Convert a document to a BibTeX containing only valid metadata.
-
-    To convert a document, it must have a valid BibTeX type
-    (see :data:`bibtex_types`) and a valid reference under the ``"ref"`` key
-    (see :func:`create_reference`). Valid BibTeX keys (see :data:`bibtex_keys`)
-    are exported, while other keys are ignored (see :data:`bibtex_ignore_keys`)
-    with the following rules:
-
-    * :confval:`bibtex-unicode` is used to control whether the
-      field values can contain unicode characters.
-    * :confval:`bibtex-journal-key` is used to define the field
-      name for the journal.
-    * :confval:`bibtex-export-file` is used to also add a
-      ``"file"`` field to the BibTeX entry, which can be used by e.g. Zotero to
-      import documents.
-
-    :param document: a Papis document.
-    :param indent: set indentation for the BibTeX fields.
-    :returns: a string containing the document metadata in a BibTeX format.
-    """
-    bibtex_type = ""
-
-    # determine bibtex type
-    if "type" in document:
-        if document["type"] in bibtex_types:
-            bibtex_type = document["type"]
-        elif document["type"] in bibtex_type_converter:
-            bibtex_type = bibtex_type_converter[document["type"]]
-        else:
-            logger.error("Invalid BibTeX type '%s' in document: '%s'.",
-                         document["type"],
-                         document.get_info_file())
-            return ""
-
-    if not bibtex_type:
-        bibtex_type = "article"
-
-    # determine ref value
-    ref = create_reference(document)
-    if not ref:
-        logger.error("No valid ref found for document: '%s'.",
-                     document.get_info_file())
-
-        return ""
-
-    logger.debug("Using ref '%s'.", ref)
-
-    from bibtexparser.latexenc import string_to_latex
-
-    # process keys
-    supports_unicode = papis.config.getboolean("bibtex-unicode")
-    journal_key = papis.config.getstring("bibtex-journal-key")
-
-    entry = {
-        "ID": ref,
-        "ENTRYTYPE": bibtex_type,
-    }
-
-    for key in sorted(document):
-        bib_key = bibtex_key_converter.get(key, key)
-        if bib_key not in bibtex_keys:
-            continue
-
-        if bib_key in bibtex_ignore_keys:
-            continue
-
-        bib_value = str(document[key])
-        logger.debug("Processing BibTeX entry: '%s: %s'.", bib_key, bib_value)
-
-        if bib_key == "journal":
-            if journal_key in document:
-                bib_value = str(document[journal_key])
-            else:
-                logger.warning(
-                    "'journal-key' key '%s' is not present for ref '%s'.",
-                    journal_key, document["ref"])
-        elif bib_key == "author" and "author_list" in document:
-            bib_value = author_list_to_author(document, document["author_list"])
-
-        override_key = f"{bib_key}_latex"
-        if override_key in document:
-            bib_value = str(document[override_key])
-
-        if not supports_unicode and bib_key not in bibtex_verbatim_fields:
-            bib_value = string_to_latex(bib_value)
-
-        entry[bib_key] = bib_value
-
-    # handle file exporting
-    from papis.exceptions import DefaultSettingValueMissing
-    try:
-        # NOTE: this option is deprecated and should be removed in the future
-        export_file = papis.config.getboolean("bibtex-export-zotero-file")
-        logger.warning("The 'bibtex-export-zotero-file' option is deprecated. "
-                       "Use 'bibtex-export-file' instead.")
-    except DefaultSettingValueMissing:
-        export_file = papis.config.getboolean("bibtex-export-file")
-
-    files = document.get_files()
-    if export_file and files:
-        entry["file"] = ";".join(files)
-
-    from bibtexparser import dumps
-    from bibtexparser.bibdatabase import BibDatabase
-    from bibtexparser.bwriter import BibTexWriter
-
-    db = BibDatabase()
-    db.entries = [entry]
-
-    writer = BibTexWriter()
-    writer.add_trailing_comma = True
-    writer.indent = " " * indent
-
-    return str(dumps(db, writer=writer).strip())
+    from papis.exporters.bibtex import to_bibtex as _to_bibtex
+    return _to_bibtex(document, indent=indent)

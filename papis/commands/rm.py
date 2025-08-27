@@ -13,32 +13,31 @@ Command-line interface
 """
 
 import os
-from typing import Optional, Tuple
 
 import click
 
-import papis.pick
-import papis.tui.utils
-import papis.document
 import papis.cli
-import papis.strings
 import papis.database
+import papis.document
 import papis.git
 import papis.logging
+import papis.pick
+import papis.strings
+import papis.tui.utils
 from papis.exceptions import DocumentFolderNotFound
 
 logger = papis.logging.get_logger(__name__)
 
 
 def run(document: papis.document.Document,
-        filepath: Optional[str] = None,
-        notespath: Optional[str] = None,
+        filepath: str | None = None,
+        notespath: str | None = None,
         git: bool = False) -> None:
     """Main method to the rm command
     """
     db = papis.database.get()
-    _doc_folder = document.get_main_folder()
-    if not _doc_folder:
+    doc_folder = document.get_main_folder()
+    if not doc_folder:
         raise DocumentFolderNotFound(papis.document.describe(document))
 
     if filepath is not None:
@@ -47,9 +46,9 @@ def run(document: papis.document.Document,
         document.save()
         db.update(document)
         if git:
-            papis.git.remove(_doc_folder, filepath)
-            papis.git.add(_doc_folder, document.get_info_file())
-            papis.git.commit(_doc_folder, f"Remove file '{filepath}'")
+            papis.git.remove(doc_folder, filepath)
+            papis.git.add(doc_folder, document.get_info_file())
+            papis.git.commit(doc_folder, f"Remove file '{filepath}'")
 
     if notespath is not None:
         os.remove(notespath)
@@ -57,20 +56,19 @@ def run(document: papis.document.Document,
         document.save()
         db.update(document)
         if git:
-            papis.git.remove(_doc_folder, notespath)
-            papis.git.add(_doc_folder, document.get_info_file())
-            papis.git.commit(_doc_folder,
+            papis.git.remove(doc_folder, notespath)
+            papis.git.add(doc_folder, document.get_info_file())
+            papis.git.commit(doc_folder,
                              f"Remove notes file '{notespath}'")
 
     # if neither files nor notes were deleted -> delete whole document
     if not (filepath or notespath):
         if git:
-            _topfolder = os.path.dirname(os.path.abspath(_doc_folder))
-            papis.git.remove(_doc_folder, _doc_folder, recursive=True)
+            topfolder = os.path.dirname(os.path.abspath(doc_folder))
+            papis.git.remove(doc_folder, doc_folder, recursive=True)
             papis.git.commit(
-                _topfolder,
-                "Remove document '{}'".format(
-                    papis.document.describe(document)))
+                topfolder,
+                f"Remove document '{papis.document.describe(document)}'")
         else:
             papis.document.delete(document)
         db.delete(document)
@@ -98,8 +96,8 @@ def cli(query: str,
         _notes: bool,
         force: bool,
         _all: bool,
-        doc_folder: Tuple[str, ...],
-        sort_field: Optional[str],
+        doc_folder: tuple[str, ...],
+        sort_field: str | None,
         sort_reverse: bool) -> None:
     """
     Remove a document, a file, or a notes-file.

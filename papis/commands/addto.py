@@ -29,9 +29,9 @@ Command-line interface
 """
 
 import os
-from typing import List, Optional, Tuple
 
 import click
+
 import papis.api
 import papis.cli
 import papis.commands.add
@@ -48,8 +48,8 @@ logger = papis.logging.get_logger(__name__)
 
 
 def run(document: papis.document.Document,
-        filepaths: List[str],
-        file_name: Optional[str] = None,
+        filepaths: list[str],
+        file_name: str | None = None,
         link: bool = False,
         git: bool = False) -> None:
     doc_folder = document.get_main_folder()
@@ -57,19 +57,53 @@ def run(document: papis.document.Document,
         raise DocumentFolderNotFound(papis.document.describe(document))
 
     import shutil
-    from papis.paths import symlink, rename_document_files
 
-    new_file_list = rename_document_files(
-        document, filepaths, file_name_format=file_name
+    from papis.paths import (
+        download_remote_files,
+        is_remote_file,
+        rename_document_files,
+        symlink,
     )
 
-    for in_file_path, out_file_name in zip(filepaths, new_file_list):
+    # ensure all remote files are downloaded, before we start renaming.
+    local_files = download_remote_files(filepaths)
+
+    # we only symlink a file it isn't a downloaded file that is stored in
+    # a temporary directory. We keep track of a boolean per file that
+    # tells us whether to link
+    new_filepaths: list[tuple[str, bool]] = []
+    for orig_filepath, filepath in zip(filepaths, local_files, strict=True):
+        # skip remote files that haven't been properly downloaded
+        if not filepath:
+            continue
+
+        if os.path.exists(filepath):
+            new_filepaths.append((filepath,
+                                  link if not is_remote_file(orig_filepath) else False))
+        else:
+            logger.warning("Skipping non-existent file: '%s'.", filepath)
+
+    if not new_filepaths:
+        logger.error("No valid files provided.")
+        return
+
+    # new_filenames is a list of renamed filenames. rename_document_files ensures
+    # that here is no name collision even after renaming so we can be sure that
+    # there is a unique filename for every file in the new_filepaths list.
+    new_filenames = rename_document_files(
+        document, [f[0] for f in new_filepaths],
+        file_name_format=file_name, allow_remote=False,
+    )
+    assert len(new_filepaths) == len(new_filenames)
+
+    for (in_file_path, link_file), out_file_name in (
+            zip(new_filepaths, new_filenames, strict=True)):
         out_file_path = os.path.join(doc_folder, out_file_name)
         if os.path.exists(out_file_path):
             logger.warning("File '%s' already exists. Skipping...", out_file_path)
             continue
 
-        if link:
+        if link_file:
             logger.info("[LN] '%s' to '%s'.", in_file_path, out_file_name)
             symlink(in_file_path, out_file_path)
         else:
@@ -79,14 +113,14 @@ def run(document: papis.document.Document,
     if "files" not in document:
         document["files"] = []
 
-    document["files"] += new_file_list
+    document["files"] += new_filenames
     papis.api.save_doc(document)
 
     if git:
         papis.git.add_and_commit_resources(
             doc_folder,
-            new_file_list + [document.get_info_file()],
-            "Add new files to '{}'".format(papis.document.describe(document)))
+            [*new_filenames, document.get_info_file()],
+            f"Add new files to '{papis.document.describe(document)}'")
 
 
 @click.command("addto")
@@ -96,13 +130,12 @@ def run(document: papis.document.Document,
 @papis.cli.sort_option()
 @click.option("-f",
               "--files",
-              help="File fullpaths to documents.",
-              multiple=True,
-              type=click.Path(exists=True))
-@click.option("-u", "--urls", help="URLs to documents.", multiple=True)
+              help="File paths or URLs to documents.",
+              multiple=True)
+@click.option("-u", "--urls", help="(deprecated) use -f", multiple=True)
 @click.option("--file-name",
               help="File name format for the document.",
-              type=papis.cli.FormattedStringParamType(),
+              type=papis.cli.FormatPatternParamType(),
               default=None)
 @click.option(
     "--link/--no-link",
@@ -113,11 +146,11 @@ def run(document: papis.document.Document,
 def cli(query: str,
         git: bool,
         link: bool,
-        files: List[str],
-        urls: List[str],
-        file_name: Optional[str],
-        sort_field: Optional[str],
-        doc_folder: Tuple[str, ...],
+        files: list[str],
+        urls: list[str],
+        file_name: str | None,
+        sort_field: str | None,
+        doc_folder: tuple[str, ...],
         sort_reverse: bool) -> None:
     """Add files to an existing document."""
     documents = papis.cli.handle_doc_folder_query_sort(

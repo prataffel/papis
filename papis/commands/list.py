@@ -50,18 +50,17 @@ Command-line interface
 """
 
 import os
-import re
-from typing import List, Optional, Sequence, Tuple
+from collections.abc import Sequence
 
 import click
 
-import papis.id
 import papis.cli
 import papis.config
-import papis.strings
 import papis.document
 import papis.format
+import papis.id
 import papis.logging
+import papis.strings
 
 logger = papis.logging.get_logger(__name__)
 
@@ -74,24 +73,30 @@ def list_plugins(show_paths: bool = False,
                  show_downloaders: bool = False,
                  show_pickers: bool = False,
                  show_doctor: bool = False,
-                 verbose: bool = False) -> List[str]:
+                 verbose: bool = False) -> list[str]:
     import colorama as c
-    from papis.plugin import get_extension_manager
+
+    from papis.commands import make_short_help
+    from papis.plugin import get_entrypoints
 
     def _format(name: str, ids: str) -> str:
         return (f"{c.Style.BRIGHT}{name}{c.Style.RESET_ALL}"
                 f" {c.Fore.YELLOW}{ids}{c.Style.RESET_ALL}")
 
-    def _stringify(namespace: str) -> List[str]:
+    def _stringify(namespace: str) -> list[str]:
         results = []
-        for p in get_extension_manager(namespace):
-            results.append(_format(p.name, f"{p.module_name}.{p.attr}"))
+        for ep in get_entrypoints(namespace):
+            results.append(_format(ep.name, f"{ep.module}.{ep.attr}"))
+            try:
+                p = ep.load()
+            except Exception as exc:
+                logger.error("Failed to load '%s' plugin from namespace '%s'.",
+                             ep.name, namespace, exc_info=exc)
+                continue
 
-            if verbose and p.plugin.__doc__:
-                lines = [line for line in p.plugin.__doc__.split("\n") if line]
-                if lines:
-                    line = re.sub(r"`(.*) <(.*)>`__", r"\1 <\2>", lines[0].strip())
-                    results.append(f"    {line}")
+            if verbose and p.__doc__:
+                descr = make_short_help(p.__doc__, "No description available.")
+                results.append(f"    {descr}")
 
         return results
 
@@ -117,20 +122,20 @@ def list_plugins(show_paths: bool = False,
             results.append(
                 _format(name, f"{check.operate.__module__}.{check.operate.__name__}")
             )
-            if verbose:
-                lines = [line for line in str(check.operate.__doc__).split("\n\n")
-                         if line]
-                line = re.sub(r":confval:`(.*)`", r"'\1'", lines[0].strip())
-                results.append(f"    {line}")
+            if verbose and check.operate.__doc__ is not None:
+                descr = make_short_help(check.operate.__doc__,
+                                        "No description available.")
+                results.append(f"    {descr}")
+
         return results
 
     if show_exporters:
-        from papis.commands.export import EXPORTER_EXTENSION_NAME
-        return _stringify(EXPORTER_EXTENSION_NAME)
+        from papis.exporters import EXPORTER_NAMESPACE_NAME
+        return _stringify(EXPORTER_NAMESPACE_NAME)
 
     if show_explorers:
-        from papis.commands.explore import EXPLORER_EXTENSION_NAME
-        return _stringify(EXPLORER_EXTENSION_NAME)
+        from papis.explorers import EXPLORER_NAMESPACE_NAME
+        return _stringify(EXPLORER_NAMESPACE_NAME)
 
     if show_importers:
         from papis.importer import IMPORTER_EXTENSION_NAME
@@ -141,8 +146,8 @@ def list_plugins(show_paths: bool = False,
         return _stringify(DOWNLOADERS_EXTENSION_NAME)
 
     if show_pickers:
-        from papis.pick import PICKER_EXTENSION_NAME
-        return _stringify(PICKER_EXTENSION_NAME)
+        from papis.pick import PICKER_NAMESPACE_NAME
+        return _stringify(PICKER_NAMESPACE_NAME)
 
     return []
 
@@ -154,11 +159,11 @@ def list_documents(documents: Sequence[papis.document.Document],
                    show_info: bool = False,
                    show_notes: bool = False,
                    show_format: papis.strings.AnyString = "",
-                   template: Optional[str] = None
-                   ) -> List[str]:
+                   template: str | None = None
+                   ) -> list[str]:
     """List document properties.
 
-    :arg template: a path to a file containing a format string that can be
+    :arg template: a path to a file containing a format pattern that can be
         used instead of *show_format*.
     :return: a list of properties depending on the given flags.
     """
@@ -181,7 +186,7 @@ def list_documents(documents: Sequence[papis.document.Document],
                 logger.error("Template file '%s' not found.", template)
                 return []
 
-            with open(template) as fd:
+            with open(template, encoding="utf-8") as fd:
                 show_format = fd.read()
 
         return [
@@ -217,7 +222,7 @@ run = list_documents
 @click.option(
     "--format", "show_format",
     help="Show documents using a custom format, e.g. '{doc[year]} {doc[title]}'.",
-    type=papis.cli.FormattedStringParamType(),
+    type=papis.cli.FormatPatternParamType(),
     default="")
 @papis.cli.bool_flag(
     "--paths", "show_paths",
@@ -269,11 +274,11 @@ def cli(query: str,
         show_downloaders: bool,
         show_pickers: bool,
         show_doctor: bool,
-        template: Optional[str],
+        template: str | None,
         quiet: bool,
         _all: bool,
-        doc_folder: Tuple[str, ...],
-        sort_field: Optional[str],
+        doc_folder: tuple[str, ...],
+        sort_field: str | None,
         sort_reverse: bool) -> None:
     """List document metadata."""
 

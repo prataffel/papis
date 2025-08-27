@@ -34,7 +34,8 @@ the schema you will not be able to search for the publisher through a query.
 """
 
 import os
-from typing import List, Dict, Optional, KeysView, TYPE_CHECKING
+from collections.abc import KeysView
+from typing import TYPE_CHECKING
 
 import papis.config
 import papis.logging
@@ -45,8 +46,8 @@ from papis.id import ID_KEY_NAME
 from papis.library import Library
 
 if TYPE_CHECKING:
+    from whoosh.fields import FieldType, Schema
     from whoosh.index import Index
-    from whoosh.fields import Schema, FieldType
     from whoosh.writing import IndexWriter
 
 logger = papis.logging.get_logger(__name__)
@@ -56,7 +57,7 @@ WHOOSH_FOLDER_FIELD = "papis-folder"
 
 
 class Database(DatabaseBase):
-    def __init__(self, library: Optional[Library] = None) -> None:
+    def __init__(self, library: Library | None = None) -> None:
         super().__init__(library)
 
         from papis.utils import get_cache_home
@@ -68,7 +69,7 @@ class Database(DatabaseBase):
 
         self.initialize()
 
-    def get_backend_name(self) -> str:
+    def get_backend_name(self) -> str:  # noqa: PLR6301
         return "whoosh"
 
     def clear(self) -> None:
@@ -129,7 +130,7 @@ class Database(DatabaseBase):
     def get_cache_path(self) -> str:
         return self.index_dir
 
-    def get_all_query_string(self) -> str:
+    def get_all_query_string(self) -> str:  # noqa: PLR6301
         return "*"
 
     def initialize(self) -> None:
@@ -184,11 +185,12 @@ class Database(DatabaseBase):
         writer.delete_by_term(ID_KEY_NAME, document[ID_KEY_NAME])
         writer.commit()
 
-    def query(self, query_string: str) -> List[Document]:
+    def query(self, query_string: str) -> list[Document]:
         logger.debug("Querying database for '%s'.", query_string)
 
         import time
-        from whoosh.qparser import MultifieldParser, FuzzyTermPlugin
+
+        from whoosh.qparser import FuzzyTermPlugin, MultifieldParser
 
         index = self._get_index()
         qp = MultifieldParser(["title", "author", "tags"], schema=index.schema)
@@ -205,11 +207,11 @@ class Database(DatabaseBase):
 
         return documents
 
-    def query_dict(self, query: Dict[str, str]) -> List[Document]:
+    def query_dict(self, query: dict[str, str]) -> list[Document]:
         query_string = " AND ".join(f'{key}:"{val}" ' for key, val in query.items())
         return self.query(query_string)
 
-    def get_all_documents(self) -> List[Document]:
+    def get_all_documents(self) -> list[Document]:
         return self.query(self.get_all_query_string())
 
     def _create_index(self) -> None:
@@ -262,10 +264,10 @@ class Database(DatabaseBase):
         index. It is quite expensive and will only be called if no index is present
         or a rebuild is necessary.
         """
-        from papis.utils import get_folders, folders_to_documents
+        from papis.utils import folders_to_documents, get_folders
 
         logger.debug("Indexing the library, this might take a while...")
-        folders: List[str] = sum([get_folders(d) for d in self.lib.paths], [])
+        folders = [f for path in self.lib.paths for f in get_folders(path)]
         documents = folders_to_documents(folders)
 
         schema_keys = self._get_schema_init_fields().keys()
@@ -290,13 +292,13 @@ class Database(DatabaseBase):
         fields = self._get_schema_init_fields()
         return Schema(**fields)
 
-    def _get_schema_init_fields(self) -> Dict[str, "FieldType"]:
+    def _get_schema_init_fields(self) -> dict[str, "FieldType"]:  # noqa: PLR6301
         """
         :returns: the keyword arguments to be passed to the Whoosh schema object
             (see :meth:`_create_schema`).
         """
         # NOTE: these are imported here so that `eval` sees them
-        from whoosh.fields import TEXT, ID, KEYWORD, STORED  # noqa: F401
+        from whoosh.fields import ID, KEYWORD, STORED, TEXT  # noqa: F401
 
         # TODO: this is a security risk, find a way to fix it
         user_prototype = eval(papis.config.getstring("whoosh-schema-prototype"))

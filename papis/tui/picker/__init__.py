@@ -1,33 +1,33 @@
 import threading
-from functools import partial
+from collections.abc import Callable, Sequence
+from functools import cache, partial
+from typing import Any, Generic, TypedDict
 
 from prompt_toolkit.application import Application
-from prompt_toolkit.formatted_text.html import HTML
 from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.layout.processors import BeforeInput
+from prompt_toolkit.filters import Condition, has_focus
+from prompt_toolkit.formatted_text.html import HTML
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent, merge_key_bindings
-from prompt_toolkit.filters import has_focus, Condition
-from prompt_toolkit.styles import Style
-from prompt_toolkit.layout.containers import (
-    HSplit, Window
-)
+from prompt_toolkit.layout.containers import HSplit, Window
 from prompt_toolkit.layout.controls import (
     BufferControl,
 )
 from prompt_toolkit.layout.layout import Layout
-import papis.config as config
+from prompt_toolkit.layout.processors import BeforeInput
+from prompt_toolkit.styles import Style
 
-from .widgets.command_line_prompt import Command, CommandLinePrompt
-from .widgets import InfoWindow, HelpWindow, MessageToolbar
-from .widgets.list import Option, OptionsList
-
-from typing import (
-    Optional, Dict, Any, List, Callable, Tuple, Generic,
-    Sequence, TypedDict, Union)
+from .widgets import (
+    Command,
+    CommandLinePrompt,
+    HelpWindow,
+    InfoWindow,
+    MessageToolbar,
+    Option,
+    OptionsList,
+)
 
 __all__ = [
-    "Option",
-    "Picker"
+    "PickerApplication"
 ]
 
 
@@ -36,91 +36,83 @@ class KeyInfo(TypedDict):
     help: str
 
 
-_KEYS_INFO: Optional[Dict[str, KeyInfo]] = None
+@cache
+def get_keys_info() -> dict[str, KeyInfo]:
+    from papis.config import getstring
+
+    return {
+        "move_down_key": {
+            "key": getstring("move_down_key", section="tui"),
+            "help": "Move cursor down in the list",
+        },
+        "move_up_key": {
+            "key": getstring("move_up_key", section="tui"),
+            "help": "Move cursor up in the list",
+        },
+        "move_down_while_info_window_active_key": {
+            "key": getstring("move_down_while_info_window_active_key", section="tui"),
+            "help": "Move cursor down while info window is active",
+        },
+        "move_up_while_info_window_active_key": {
+            "key": getstring("move_up_while_info_window_active_key", section="tui"),
+            "help": "Move cursor up while info window is active",
+        },
+        "focus_command_line_key": {
+            "key": getstring("focus_command_line_key", section="tui"),
+            "help": "Focus command line prompt",
+        },
+        "browse_document_key": {
+            "key": getstring("browse_document_key", section="tui"),
+            "help": "Browse currently selected document",
+        },
+        "edit_document_key": {
+            "key": getstring("edit_document_key", section="tui"),
+            "help": "Edit currently selected document",
+        },
+        "edit_notes_key": {
+            "key": getstring("edit_notes_key", section="tui"),
+            "help": "Edit notes of currently selected document",
+        },
+        "open_document_key": {
+            "key": getstring("open_document_key", section="tui"),
+            "help": "Open currently selected document",
+        },
+        "show_help_key": {
+            "key": getstring("show_help_key", section="tui"),
+            "help": "Show help",
+        },
+        "show_info_key": {
+            "key": getstring("show_info_key", section="tui"),
+            "help": "Show the yaml information of the current document",
+        },
+        "go_top_key": {
+            "key": getstring("go_top_key", section="tui"),
+            "help": "Go to the top of the list",
+        },
+        "go_bottom_key": {
+            "key": getstring("go_bottom_key", section="tui"),
+            "help": "Go to the bottom of the list",
+        },
+        "mark_key": {
+            "key": getstring("mark_key", section="tui"),
+            "help": "Mark current item to be selected",
+        },
+    }
 
 
-def get_keys_info() -> Dict[str, KeyInfo]:
-    global _KEYS_INFO
-    if _KEYS_INFO is None:
-        _KEYS_INFO = {
-            "move_down_key": {
-                "key": config.getstring("move_down_key", section="tui"),
-                "help": "Move cursor down in the list",
-            },
-            "move_up_key": {
-                "key": config.getstring("move_up_key", section="tui"),
-                "help": "Move cursor up in the list",
-            },
-            "move_down_while_info_window_active_key": {
-                "key": config.getstring(
-                    "move_down_while_info_window_active_key", section="tui"
-                ),
-                "help": "Move cursor down while info window is active",
-            },
-            "move_up_while_info_window_active_key": {
-                "key": config.getstring(
-                    "move_up_while_info_window_active_key", section="tui"
-                ),
-                "help": "Move cursor up while info window is active",
-            },
-            "focus_command_line_key": {
-                "key":
-                    config.getstring("focus_command_line_key", section="tui"),
-                "help": "Focus command line prompt",
-            },
-            "browse_document_key": {
-                "key": config.getstring("browse_document_key", section="tui"),
-                "help": "Browse currently selected document",
-            },
-            "edit_document_key": {
-                "key": config.getstring("edit_document_key", section="tui"),
-                "help": "Edit currently selected document",
-            },
-            "edit_notes_key": {
-                "key": config.getstring("edit_notes_key", section="tui"),
-                "help": "Edit notes of currently selected document",
-            },
-            "open_document_key": {
-                "key": config.getstring("open_document_key", section="tui"),
-                "help": "Open currently selected document",
-            },
-            "show_help_key": {
-                "key": config.getstring("show_help_key", section="tui"),
-                "help": "Show help",
-            },
-            "show_info_key": {
-                "key": config.getstring("show_info_key", section="tui"),
-                "help": "Show the yaml information of the current document",
-            },
-            "go_top_key": {
-                "key": config.getstring("go_top_key", section="tui"),
-                "help": "Go to the top of the list",
-            },
-            "go_bottom_key": {
-                "key": config.getstring("go_bottom_key", section="tui"),
-                "help": "Go to the bottom of the list",
-            },
-            "mark_key": {
-                "key": config.getstring("mark_key", section="tui"),
-                "help": "Mark current item to be selected",
-            },
-        }
-    return _KEYS_INFO
-
-
-def create_keybindings(app: "Picker[Any]") -> KeyBindings:
+def create_keybindings(app: "PickerApplication[Any]") -> KeyBindings:
     keys_info = get_keys_info()
     kb = KeyBindings()
 
     @kb.add("escape",
-            filter=Condition(lambda: app.message_toolbar.text))
+            filter=Condition(lambda: bool(app.message_toolbar.text)))
     def _escape_message(event: KeyPressEvent) -> None:
-        app.message_toolbar.text = None
+        app.message_toolbar.text = ""
 
     @kb.add("escape",
-            filter=Condition(lambda: app.error_toolbar.text))
+            filter=Condition(lambda: bool(app.error_toolbar.text)))
     def _escape_error(event: KeyPressEvent) -> None:
-        app.error_toolbar.text = None
+        app.error_toolbar.text = ""
 
     @kb.add("c-n",                                      # type: ignore[misc]
             filter=~has_focus(app.info_window))
@@ -161,7 +153,7 @@ def create_keybindings(app: "Picker[Any]") -> KeyBindings:
     def _help_quit(event: KeyPressEvent) -> None:
         app.layout.focus(app.help_window.window)
         app.layout.focus(app.command_line_prompt.window)
-        app.message_toolbar.text = None
+        app.message_toolbar.text = ""
         app.layout.focus(app.options_list.search_buffer)
 
     @kb.add("q",                                        # type: ignore[misc]
@@ -172,7 +164,7 @@ def create_keybindings(app: "Picker[Any]") -> KeyBindings:
             filter=has_focus(app.info_window))
     def _info(event: KeyPressEvent) -> None:
         app.layout.focus(app.options_list.search_buffer)
-        app.message_toolbar.text = None
+        app.message_toolbar.text = ""
 
     @kb.add(                                            # type: ignore[misc]
         keys_info["focus_command_line_key"]["key"],
@@ -203,24 +195,24 @@ def create_keybindings(app: "Picker[Any]") -> KeyBindings:
     return kb
 
 
-def get_commands(app: "Picker[Any]") -> Tuple[List[Command], KeyBindings]:
+def get_commands(app: "PickerApplication[Any]") -> tuple[list[Command], KeyBindings]:
     kb = KeyBindings()
     keys_info = get_keys_info()
 
     @kb.add("c-q")
     @kb.add("c-c")
-    def exit(event: Union[Command, KeyPressEvent]) -> None:
+    def exit(event: Command | KeyPressEvent) -> None:
         app.deselect()
         app.exit()
 
     @kb.add("enter",                                    # type: ignore[misc]
             filter=has_focus(app.options_list.search_buffer))
-    def select(event: Union[Command, KeyPressEvent]) -> None:
+    def select(event: Command | KeyPressEvent) -> None:
         app.exit()
 
     @kb.add(keys_info["open_document_key"]["key"],      # type: ignore[misc]
             filter=has_focus(app.options_list.search_buffer))
-    def open(event: Union[Command, KeyPressEvent]) -> None:
+    def open(event: Command | KeyPressEvent) -> None:
         from papis.commands.open import run
 
         docs = app.get_selection()
@@ -237,7 +229,7 @@ def get_commands(app: "Picker[Any]") -> Tuple[List[Command], KeyBindings]:
 
     @kb.add(keys_info["browse_document_key"]["key"],      # type: ignore[misc]
             filter=has_focus(app.options_list.search_buffer))
-    def browse(event: Union[Command, KeyPressEvent]) -> None:
+    def browse(event: Command | KeyPressEvent) -> None:
         from papis.commands.browse import run
         docs = app.get_selection()
         for doc in docs:
@@ -245,7 +237,7 @@ def get_commands(app: "Picker[Any]") -> Tuple[List[Command], KeyBindings]:
 
     @kb.add(keys_info["edit_document_key"]["key"],      # type: ignore[misc]
             filter=has_focus(app.options_list.search_buffer))
-    def edit(event: Union[Command, KeyPressEvent]) -> None:
+    def edit(event: Command | KeyPressEvent) -> None:
         from papis.commands.edit import run
         docs = app.get_selection()
         for doc in docs:
@@ -262,25 +254,25 @@ def get_commands(app: "Picker[Any]") -> Tuple[List[Command], KeyBindings]:
 
     @kb.add(keys_info["show_help_key"]["key"],          # type: ignore[misc]
             filter=~has_focus(app.help_window))
-    def help(event: Union[Command, KeyPressEvent]) -> None:
+    def help(event: Command | KeyPressEvent) -> None:
         app.layout.focus(app.help_window.window)
         app.message_toolbar.text = "Press q to quit"
 
     @kb.add(keys_info["show_info_key"]["key"],          # type: ignore[misc]
             filter=~has_focus(app.info_window))
-    def info(event: Union[Command, KeyPressEvent]) -> None:
+    def info(event: Command | KeyPressEvent) -> None:
         app.update_info_window()
         app.layout.focus(app.info_window.window)
 
     @kb.add("c-g", "g")
     @kb.add(keys_info["go_top_key"]["key"])
-    def go_top(event: Union[Command, KeyPressEvent]) -> None:
+    def go_top(event: Command | KeyPressEvent) -> None:
         app.options_list.go_top()
         app.refresh()
 
     @kb.add("c-g", "G")
     @kb.add(keys_info["go_bottom_key"]["key"])
-    def go_end(event: Union[Command, KeyPressEvent]) -> None:
+    def go_end(event: Command | KeyPressEvent) -> None:
         app.options_list.go_bottom()
         app.refresh()
 
@@ -299,12 +291,11 @@ def get_commands(app: "Picker[Any]") -> Tuple[List[Command], KeyBindings]:
     ], kb)
 
 
-class Picker(Application, Generic[Option]):  # type: ignore
-    """The :class:`Picker <Picker>` object
+class PickerApplication(Application, Generic[Option]):  # type: ignore[type-arg]
+    """A full screen picker widget.
 
-    :param options: a list of options to choose from
-    :param default_index: (optional) set this if the default
-        selected option is not the first one
+    This application implements a TUI picker that is used to select documents
+    or other objects.
     """
 
     def __init__(
@@ -313,14 +304,19 @@ class Picker(Application, Generic[Option]):  # type: ignore
             default_index: int = 0,
             header_filter: Callable[[Option], str] = str,
             match_filter: Callable[[Option], str] = str) -> None:
+        """
+        :param options: a list of options to choose from
+        :param default_index: (optional) set this if the default
+            selected option is not the first one
+        """
+        from papis.config import getstring
 
         self.info_window = InfoWindow()
         self.help_window = HelpWindow()
         self.message_toolbar = MessageToolbar(style="class:message_toolbar")
         self.error_toolbar = MessageToolbar(style="class:error_toolbar")
         self.status_line = MessageToolbar(style="class:status_line")
-        self.status_line_format = config.getstring(
-            "status_line_format", section="tui")
+        self.status_line_format = getstring("status_line_format", section="tui")
 
         self.options_list = OptionsList(
             options,
@@ -335,7 +331,7 @@ class Picker(Application, Generic[Option]):  # type: ignore
         self.command_line_prompt = CommandLinePrompt(commands=commands)
         kb = merge_key_bindings([create_keybindings(self), commands_kb])
 
-        _root_container = HSplit([
+        root_container = HSplit([
             HSplit([
                 Window(
                     content=BufferControl(
@@ -362,32 +358,32 @@ class Picker(Application, Generic[Option]):  # type: ignore
             )
         self.help_window.text = HTML(help_text)
 
-        self.layout = Layout(_root_container)
+        self.layout = Layout(root_container)
 
         super().__init__(
             input=None,
             output=None,
             editing_mode=EditingMode.EMACS
-            if config.get("editmode", section="tui") == "emacs"
+            if getstring("editmode", section="tui") == "emacs"
             else EditingMode.VI,
             layout=self.layout,
             style=Style.from_dict({
-                "options_list.selected_margin": config.getstring(
+                "options_list.selected_margin": getstring(
                     "options_list.selected_margin_style", section="tui"
                 ),
-                "options_list.unselected_margin": config.getstring(
+                "options_list.unselected_margin": getstring(
                     "options_list.unselected_margin_style", section="tui"
                 ),
-                "options_list.marked_margin": config.getstring(
+                "options_list.marked_margin": getstring(
                     "options_list.marked_margin_style", section="tui"
                 ),
-                "error_toolbar": config.getstring(
+                "error_toolbar": getstring(
                     "error_toolbar_style", section="tui"
                 ),
-                "message_toolbar": config.getstring(
+                "message_toolbar": getstring(
                     "message_toolbar_style", section="tui"
                 ),
-                "status_line": config.getstring(
+                "status_line": getstring(
                     "status_line_style", section="tui"
                 ),
             }),

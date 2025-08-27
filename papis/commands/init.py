@@ -31,14 +31,14 @@ Command-line interface
     :prog: papis init
 """
 
-from typing import NamedTuple, Optional
 import os
+from typing import NamedTuple
 
 import click
 
-import papis.utils
 import papis.config
 import papis.logging
+import papis.utils
 
 logger = papis.logging.get_logger(__name__)
 
@@ -101,7 +101,7 @@ def _is_git_repository(path: str) -> bool:
     metavar="<LIBRARY DIRECTORY>",
     nargs=1,
 )
-def cli(dir_path: Optional[str]) -> None:
+def cli(dir_path: str | None) -> None:
     """Initialize a Papis library."""
 
     from papis.tui.utils import confirm, prompt
@@ -184,7 +184,7 @@ def cli(dir_path: Optional[str]) -> None:
         if not has_config_file:
             config.remove_section("papers")
 
-        with open(config_file, "w") as configfile:
+        with open(config_file, "w", encoding="utf-8") as configfile:
             config.write(configfile)
 
         logger.info("Configuration file saved at '%s'.", config_file)

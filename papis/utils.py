@@ -1,8 +1,8 @@
 import os
-import sys
 import re
-from typing import (Optional, List, Iterator, Iterable, Any, Dict,
-                    Union, Callable, Sequence, TypeVar, Tuple, TYPE_CHECKING)
+import sys
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING, Any, TypeVar
 from warnings import warn
 
 try:
@@ -66,7 +66,7 @@ def has_multiprocessing() -> bool:
 
 def parmap(f: Callable[[A], B],
            xs: Iterable[A],
-           np: Optional[int] = None) -> List[B]:
+           np: int | None = None) -> list[B]:
     """Apply the function *f* to all elements of *xs*.
 
     When available, this function uses the :mod:`multiprocessing` module to
@@ -100,8 +100,8 @@ def parmap(f: Callable[[A], B],
 
 def run(cmd: Sequence[str],
         wait: bool = True,
-        env: Optional[Dict[str, Any]] = None,
-        cwd: Optional[str] = None) -> None:
+        env: dict[str, Any] | None = None,
+        cwd: str | None = None) -> None:
     """Run a given command with :mod:`subprocess`.
 
     This is a simple wrapper around :class:`subprocess.Popen` with custom
@@ -139,7 +139,7 @@ def run(cmd: Sequence[str],
     else:
         # NOTE: detach process so that the terminal can be closed without also
         # closing the 'opentool' itself with the open document
-        platform_kwargs: Dict[str, Any] = {}
+        platform_kwargs: dict[str, Any] = {}
         if sys.platform == "win32":
             platform_kwargs["creationflags"] = (
                 subprocess.DETACHED_PROCESS
@@ -163,7 +163,7 @@ def run(cmd: Sequence[str],
 
 def general_open(file_name: str,
                  key: str,
-                 default_opener: Optional[str] = None,
+                 default_opener: str | None = None,
                  wait: bool = True) -> None:
     """Open a file with a configured open tool (executable).
 
@@ -189,7 +189,7 @@ def general_open(file_name: str,
 
     # NOTE: 'opener' can be a command with arguments, so we split it properly
     is_windows = sys.platform == "win32"
-    cmd = shlex.split(str(opener), posix=not is_windows) + [file_name]
+    cmd = [*shlex.split(str(opener), posix=not is_windows), file_name]
 
     import shutil
     if shutil.which(cmd[0]) is None:
@@ -209,7 +209,7 @@ def open_file(file_path: str, wait: bool = True) -> None:
     general_open(file_name=file_path, key="opentool", wait=wait)
 
 
-def get_folders(folder: str) -> List[str]:
+def get_folders(folder: str) -> list[str]:
     """Get all folders with ``papis`` documents inside of *folder*.
 
     This is the main indexing routine. It looks inside *folder* and crawls
@@ -233,7 +233,7 @@ def get_folders(folder: str) -> List[str]:
     return folders
 
 
-def create_identifier(input_list: Optional[str] = None, skip: int = 0) -> Iterator[str]:
+def create_identifier(input_list: str | None = None, skip: int = 0) -> Iterator[str]:
     warn("'create_identifier' is deprecated and will be removed in the next "
          "version. Use 'papis.paths.unique_suffixes' instead.",
          DeprecationWarning, stacklevel=2)
@@ -255,9 +255,9 @@ def clean_document_name(doc_path: str, is_path: bool = True) -> str:
 
 
 def locate_document_in_lib(document: papis.document.Document,
-                           library: Optional[str] = None,
+                           library: str | None = None,
                            *,
-                           unique_document_keys: Optional[List[str]] = None,
+                           unique_document_keys: list[str] | None = None,
                            ) -> papis.document.Document:
     """Locate a document in a library.
 
@@ -284,14 +284,14 @@ def locate_document_in_lib(document: papis.document.Document,
         if docs:
             return docs[0]
 
-    raise IndexError("Document not found in library: '{}'"
-                     .format(papis.document.describe(document)))
+    raise IndexError(
+        f"Document not found in library: '{papis.document.describe(document)}'")
 
 
 def locate_document(
         document: papis.document.Document,
         documents: Iterable[papis.document.Document]
-        ) -> Optional[papis.document.Document]:
+        ) -> papis.document.Document | None:
     """Locate a *document* in a list of *documents*.
 
     This function uses the :confval:`unique-document-keys`
@@ -318,7 +318,7 @@ def locate_document(
     return None
 
 
-def folders_to_documents(folders: Iterable[str]) -> List[papis.document.Document]:
+def folders_to_documents(folders: Iterable[str]) -> list[papis.document.Document]:
     """Load a list of documents from their respective *folders*.
 
     :param folders: a list of folder paths to load from.
@@ -334,8 +334,8 @@ def folders_to_documents(folders: Iterable[str]) -> List[papis.document.Document
 
 
 def update_doc_from_data_interactively(
-        document: Union[papis.document.Document, Dict[str, Any]],
-        data: Dict[str, Any],
+        document: papis.document.Document | dict[str, Any],
+        data: dict[str, Any],
         data_name: str) -> None:
     """Shows a TUI to update the *document* interactively with fields from *data*.
 
@@ -347,7 +347,7 @@ def update_doc_from_data_interactively(
     import copy
     docdata = copy.copy(document)
 
-    from papis.tui.widgets.diff import diffdict
+    from papis.tui.diff import diffdict
 
     # do not compare some entries
     docdata.pop("files", None)
@@ -382,9 +382,9 @@ def get_cache_home() -> str:
 
 def get_matching_importer_or_downloader(
         uri: str,
-        download_files: Optional[bool] = None,
-        only_data: Optional[bool] = None
-        ) -> List[papis.importer.Importer]:
+        download_files: bool | None = None,
+        only_data: bool | None = None
+        ) -> list[papis.importer.Importer]:
     """Gets all the importers and downloaders that match *uri*.
 
     This function tries to match the URI using :meth:`~papis.importer.Importer.match`
@@ -435,9 +435,9 @@ def get_matching_importer_or_downloader(
                         importer.fetch_data()
                     except NotImplementedError:
                         importer.fetch()
-            except Exception:
+            except Exception as exc:
                 logger.debug("%s (%s) failed to fetch query: '%s'.",
-                             name, importer.name, uri)
+                             name, importer.name, uri, exc_info=exc)
             else:
                 logger.info(
                     "{c.Back.BLACK}{c.Fore.GREEN}%s (%s) fetched data for query '%s'!"
@@ -450,10 +450,10 @@ def get_matching_importer_or_downloader(
 
 
 def get_matching_importer_by_name(
-        name_and_uris: Iterable[Tuple[str, str]],
-        download_files: Optional[bool] = None,
-        only_data: Optional[bool] = None,
-        ) -> List[papis.importer.Importer]:
+        name_and_uris: Iterable[tuple[str, str]],
+        download_files: bool | None = None,
+        only_data: bool | None = None,
+        ) -> list[papis.importer.Importer]:
     """Get importers that match the given URIs.
 
     This function tries to match the URI using :meth:`~papis.importer.Importer.match`
@@ -476,12 +476,16 @@ def get_matching_importer_by_name(
     if download_files is None:
         download_files = False
 
-    import_mgr = papis.importer.get_import_mgr()
+    from requests.exceptions import RequestException
+
+    from papis.plugin import get_plugins
+
+    plugins = get_plugins(papis.importer.IMPORTER_EXTENSION_NAME)
 
     result = []
     for name, uri in name_and_uris:
         try:
-            importer = import_mgr[name].plugin(uri=uri)
+            importer = plugins[name](uri=uri)
             if download_files:
                 importer.fetch()
             else:
@@ -494,6 +498,11 @@ def get_matching_importer_by_name(
 
             if importer.ctx:
                 result.append(importer)
+        except RequestException as exc:
+            # NOTE: this is probably some HTTP error, so we better let the
+            # user know if there's something wrong with their network
+            logger.error("Failed to match importer '%s': '%s'.",
+                         name, uri, exc_info=exc)
         except Exception as exc:
             logger.debug("Failed to match importer '%s': '%s'.",
                          name, uri, exc_info=exc)
@@ -504,8 +513,8 @@ def get_matching_importer_by_name(
 def collect_importer_data(
         importers: Iterable[papis.importer.Importer],
         batch: bool = True,
-        use_files: Optional[bool] = None,
-        only_data: Optional[bool] = None,
+        use_files: bool | None = None,
+        only_data: bool | None = None,
         ) -> papis.importer.Context:
     """Collect all data from the given *importers*.
 

@@ -2,7 +2,7 @@ import re
 
 
 def test_basic() -> None:
-    from papis.tui.widgets.list import OptionsList
+    from papis.tui.picker.widgets import OptionsList
 
     ol = OptionsList(["hello", "world", "<bye"])
     assert ol.get_selection() == ["hello"]
@@ -35,14 +35,14 @@ def test_basic() -> None:
         ("class:options_list.unselected_margin", " ")]
     assert ol.get_line_prefix(0, 0) == [
         ("class:options_list.marked_margin", "#")]
-    assert ol.search_regex == re.compile(".*", re.I)
+    assert ol.search_regex == re.compile(r".*", re.I)
 
     ol.search_buffer.text = "l"
-    assert ol.search_regex == re.compile(".*l", re.I)
+    assert ol.search_regex == re.compile(r".*l", re.I)
     assert ol.indices == [0, 1]
 
     ol.search_buffer.text = "l  "
-    assert ol.search_regex == re.compile(".*l.*", re.I)
+    assert ol.search_regex == re.compile(r".*l.*", re.I)
     assert ol.indices == [0, 1]
     assert len(ol.get_options()) == 3
 
@@ -88,7 +88,7 @@ def test_basic() -> None:
 
 
 def test_match_against_regex() -> None:
-    from papis.tui.widgets.list import match_against_regex
+    from papis.tui.picker.options_list import match_against_regex
 
     assert match_against_regex(re.compile(r".*he.*"), (2, "he")) == 2
     assert match_against_regex(re.compile(r"hes"), (2, "he")) is None

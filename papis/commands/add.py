@@ -103,29 +103,28 @@ Command-line interface
 """
 
 import os
-from typing import List, Any, Optional, Dict, Tuple
+from typing import Any
 from warnings import warn
 
 import click
 
 import papis.api
-import papis.pick
-import papis.utils
-import papis.hooks
-import papis.tui.utils
-import papis.filetype
+import papis.citations
+import papis.cli
+import papis.commands.doctor
 import papis.config
 import papis.document
-import papis.importer
-import papis.cli
-import papis.strings
 import papis.downloaders
-import papis.git
+import papis.filetype
 import papis.format
-import papis.citations
+import papis.git
+import papis.hooks
+import papis.importer
 import papis.logging
-import papis.commands.doctor
-
+import papis.pick
+import papis.strings
+import papis.tui.utils
+import papis.utils
 
 logger = papis.logging.get_logger(__name__)
 
@@ -138,7 +137,7 @@ class FromFolderImporter(papis.importer.Importer):
         super().__init__(name="folder", **kwargs)
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         return FromFolderImporter(uri=uri) if os.path.isdir(uri) else None
 
     def fetch(self) -> None:
@@ -162,7 +161,7 @@ class FromLibImporter(papis.importer.Importer):
         super().__init__(name="lib", **kwargs)
 
     @classmethod
-    def match(cls, uri: str) -> Optional[papis.importer.Importer]:
+    def match(cls, uri: str) -> papis.importer.Importer | None:
         try:
             papis.config.get_lib_from_name(uri)
         except Exception:
@@ -184,7 +183,7 @@ def get_file_name(
         doc: papis.document.Document,
         original_filepath: str,
         suffix: str = "",
-        file_name_format: Optional[papis.strings.AnyString] = None,
+        file_name_format: papis.strings.AnyString | None = None,
         base_name_limit: int = 150) -> str:
     warn("'get_file_name' is deprecated and will be removed in the next "
          "version. Use 'papis.paths.get_document_file_name' instead.",
@@ -195,7 +194,7 @@ def get_file_name(
                                   base_name_limit=base_name_limit)
 
 
-def get_hash_folder(data: Dict[str, Any], document_paths: List[str]) -> str:
+def get_hash_folder(data: dict[str, Any], document_paths: list[str]) -> str:
     warn("'get_hash_folder' is deprecated and will be removed in the next "
          "version. Use 'papis.paths.get_document_hash_folder' instead.",
          DeprecationWarning, stacklevel=2)
@@ -213,12 +212,12 @@ def ensure_new_folder(path: str) -> str:
     return _make_unique_folder(path)
 
 
-def run(paths: List[str],
-        data: Optional[Dict[str, Any]] = None,
-        folder_name: Optional[papis.strings.AnyString] = None,
-        file_name: Optional[papis.strings.AnyString] = None,
-        subfolder: Optional[str] = None,
-        base_path: Optional[str] = None,
+def run(paths: list[str],
+        data: dict[str, Any] | None = None,
+        folder_name: papis.strings.AnyString | None = None,
+        file_name: papis.strings.AnyString | None = None,
+        subfolder: str | None = None,
+        base_path: str | None = None,
         batch: bool = False,
         confirm: bool = False,
         open_file: bool = False,
@@ -226,7 +225,7 @@ def run(paths: List[str],
         git: bool = False,
         link: bool = False,
         move: bool = False,
-        citations: Optional[papis.citations.Citations] = None,
+        citations: papis.citations.Citations | None = None,
         auto_doctor: bool = False) -> None:
     """
     :param paths: Paths to the documents to be added.
@@ -264,9 +263,11 @@ def run(paths: List[str],
 
     # reference building
     # NOTE: this needs to go before any papis.format calls, so that those can
-    # potentially use the 'ref' key in the formatted strings.
+    # potentially use the 'ref' key in the format patterns.
     if "ref" not in data:
-        new_ref = papis.bibtex.create_reference(data)
+        from papis.bibtex import create_reference
+
+        new_ref = create_reference(data)
         if new_ref:
             logger.info("Created reference '%s'.", new_ref)
             tmp_document["ref"] = new_ref
@@ -284,16 +285,17 @@ def run(paths: List[str],
         base_path = os.path.join(base_path, subfolder)
 
     # rename all the given file names
-    from papis.paths import symlink, rename_document_files
+    from papis.paths import rename_document_files, symlink
 
     renamed_file_list = rename_document_files(
         tmp_document, in_document_paths,
-        file_name_format=file_name)
+        file_name_format=file_name, allow_remote=False)
 
     import shutil
 
     document_file_list = []
-    for in_file_path, out_file_name in zip(in_document_paths, renamed_file_list):
+    for in_file_path, out_file_name in (
+            zip(in_document_paths, renamed_file_list, strict=True)):
         out_file_path = os.path.join(temp_dir, out_file_name)
         if os.path.exists(out_file_path):
             logger.warning("File '%s' already exists. Skipping...", out_file_path)
@@ -399,7 +401,7 @@ def run(paths: List[str],
     if git:
         papis.git.add_and_commit_resource(
             out_folder_path, ".",
-            "Add document '{}'".format(papis.document.describe(tmp_document)))
+            f"Add document '{papis.document.describe(tmp_document)}'")
 
     if move:
         for in_file_path in in_document_paths:
@@ -430,12 +432,12 @@ def run(paths: List[str],
 @click.option(
     "--folder-name",
     help="Name format for the document main folder.",
-    type=papis.cli.FormattedStringParamType(),
-    default=lambda: papis.config.getformattedstring("add-folder-name"))
+    type=papis.cli.FormatPatternParamType(),
+    default=lambda: papis.config.getformatpattern("add-folder-name"))
 @click.option(
     "--file-name",
     help="File name format for the document.",
-    type=papis.cli.FormattedStringParamType(),
+    type=papis.cli.FormatPatternParamType(),
     default=None)
 @click.option(
     "--from", "from_importer",
@@ -482,13 +484,13 @@ def run(paths: List[str],
     "--fetch-citations/--no-fetch-citations",
     help="Fetch citations from a DOI (Digital Object Identifier).",
     default=lambda: papis.config.getboolean("add-fetch-citations"))
-def cli(files: List[str],
-        set_list: List[Tuple[str, str]],
+def cli(files: list[str],
+        set_list: list[tuple[str, str]],
         subfolder: str,
         pick_subfolder: bool,
         folder_name: papis.strings.AnyString,
-        file_name: Optional[papis.strings.AnyString],
-        from_importer: List[Tuple[str, str]],
+        file_name: papis.strings.AnyString | None,
+        from_importer: list[tuple[str, str]],
         batch: bool,
         confirm: bool,
         open_file: bool,
@@ -513,10 +515,13 @@ def cli(files: List[str],
         from_importer, download_files=download_files)
 
     if not from_importer and files:
-        matching_importers = sum((
-            papis.utils.get_matching_importer_or_downloader(
-                f, download_files=download_files)
-            for f in files), [])
+        from itertools import chain
+
+        matching_importers = list(
+            chain.from_iterable(
+                papis.utils.get_matching_importer_or_downloader(
+                    f, download_files=download_files)
+                for f in files))
 
         if matching_importers and not batch:
             logger.info("These importers where automatically matched. "

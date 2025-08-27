@@ -1,12 +1,12 @@
-import sys
 import os
-from typing import Any, Dict
+import sys
+from typing import Any
 
-from papis.strings import FormattedString
+from papis.strings import FormatPattern
 
 
-def _f(value: str) -> FormattedString:
-    return FormattedString("python", value)
+def _f(value: str) -> FormatPattern:
+    return FormatPattern("python", value)
 
 
 def get_default_opener() -> str:
@@ -28,7 +28,7 @@ def get_default_opener() -> str:
 
 NOT_SET = object()
 
-settings: Dict[str, Any] = {
+settings: dict[str, Any] = {
     # unused or deprecated
     "add-interactive": False,
     "mvtool": "mv",

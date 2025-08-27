@@ -1,10 +1,10 @@
 import os
+
 import pytest
 
 import papis.downloaders
 from papis.downloaders.hal import Downloader
-
-from papis.testing import TemporaryConfiguration, ResourceCache
+from papis.testing import ResourceCache, TemporaryConfiguration
 
 HAL_URLS = (
     "https://hal.archives-ouvertes.fr/jpa-00235190",
@@ -20,7 +20,7 @@ def test_hal_match(tmp_config: TemporaryConfiguration) -> None:
         "https://shs.hal.science/halshs-02285492",
         "https://medihal.archives-ouvertes.fr/hal-03523188",
         "https://media.hal.science/hal-03523188",
-        ) + HAL_URLS
+        *HAL_URLS)
     invalid_urls = (
         "https://data.archives-ouvertes.fr/hal-02285492",
         "https://data.hal.science/hal-02285492",
@@ -49,8 +49,8 @@ def test_hal_fetch(tmp_config: TemporaryConfiguration,
 
     domain = result.netloc.split(".")[0].upper()
     uid = os.path.basename(result.path).replace("-", "_")
-    infile = "HAL_{}_{}.html".format(domain, uid)
-    outfile = "HAL_{}_{}_Out.json".format(domain, uid)
+    infile = f"HAL_{domain}_{uid}.html"
+    outfile = f"HAL_{domain}_{uid}_Out.json"
 
     monkeypatch.setattr(down, "_get_body",
                         lambda: resource_cache.get_remote_resource(infile, url))
